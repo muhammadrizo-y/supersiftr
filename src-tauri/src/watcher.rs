@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use notify::RecursiveMode;
-use notify_debouncer_mini::new_debouncer;
+use notify_debouncer_mini::{new_debouncer, DebouncedEvent};
 use tauri::Emitter;
 
 #[derive(Clone, serde::Serialize)]
@@ -17,6 +17,12 @@ pub struct FileWatcher {
     stop_tx: Option<mpsc::Sender<()>>,
 }
 
+impl Default for FileWatcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FileWatcher {
     pub fn new() -> Self {
         Self {
@@ -25,17 +31,24 @@ impl FileWatcher {
         }
     }
 
-    pub fn watch(
+    /// Watches a path recursively. Every debounced file event triggers the
+    /// `processor` callback (on the watcher thread) and is also emitted to the
+    /// frontend as a `file-event` for UI visibility.
+    pub fn watch<P>(
         &mut self,
         path: PathBuf,
         app: tauri::AppHandle,
-    ) -> Result<(), String> {
+        processor: P,
+    ) -> Result<(), String>
+    where
+        P: Fn(PathBuf) + Send + 'static,
+    {
         let (stop_tx, stop_rx) = mpsc::channel::<()>();
         self.stop_tx = Some(stop_tx);
 
         let mut debouncer = new_debouncer(
             Duration::from_millis(500),
-            move |result: Result<Vec<notify_debouncer_mini::DebouncedEvent>, _>| {
+            move |result: Result<Vec<DebouncedEvent>, _>| {
                 if let Ok(events) = result {
                     for event in events {
                         let kind = format!("{:?}", event.kind);
@@ -44,6 +57,7 @@ impl FileWatcher {
                             kind,
                         };
                         let _ = app.emit("file-event", file_event);
+                        processor(event.path);
                     }
                 }
             },
