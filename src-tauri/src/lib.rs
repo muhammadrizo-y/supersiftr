@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod rules;
 pub mod watcher;
 
