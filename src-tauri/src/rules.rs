@@ -139,4 +139,27 @@ mod tests {
             _ => panic!("expected Move action"),
         }
     }
+
+    #[test]
+    fn roundtrips_frontend_rule_payload() {
+        // Mirrors the exact JSON the frontend sends to the `add_rule` command,
+        // including explicit nulls for unused match criteria.
+        let json = serde_json::json!({
+            "name": "Images",
+            "match_criteria": {
+                "extension": null,
+                "name_pattern": null,
+                "date_after": null,
+                "date_before": null
+            },
+            "action": { "type": "copy", "destination": "D:\\Pictures" }
+        });
+        let rule: Rule = serde_json::from_value(json).unwrap();
+        assert_eq!(rule.name, "Images");
+        assert_eq!(rule.match_criteria.extension, None);
+        match rule.action {
+            RuleAction::Copy { destination } => assert_eq!(destination, "D:\\Pictures"),
+            _ => panic!("expected Copy action"),
+        }
+    }
 }

@@ -51,6 +51,81 @@ body {
   font-weight: 600;
 }
 
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.panel-header h2 {
+  margin: 0;
+}
+
+.rule-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+  background: #f6f6f6;
+  border-radius: 8px;
+  border: 1px solid #e2e2e2;
+}
+
+.rule-form fieldset {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0;
+}
+
+.rule-form legend {
+  font-weight: 600;
+  padding: 0 6px;
+}
+
+.rule-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.rule-form input {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.row-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.action-type {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.action-type label {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  text-transform: capitalize;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .empty {
   color: #888;
   font-size: 0.9rem;
@@ -161,6 +236,21 @@ button:active {
 
   .rule-list pre {
     background: #222;
+  }
+
+  .rule-form {
+    background: #2a2a2a;
+    border-color: #444;
+  }
+
+  .rule-form fieldset {
+    border-color: #555;
+  }
+
+  .rule-form input {
+    background: #1a1a1a;
+    border-color: #555;
+    color: #f6f6f6;
   }
 
   .folder-list li,

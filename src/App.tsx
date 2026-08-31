@@ -5,9 +5,11 @@ import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
 type RuleAction =
-  | { type: "Move"; destination: string }
-  | { type: "Copy"; destination: string }
-  | { type: "Rename"; pattern: string };
+  | { type: "move"; destination: string }
+  | { type: "copy"; destination: string }
+  | { type: "rename"; pattern: string };
+
+type ActionType = RuleAction["type"];
 
 type MatchCriteria = {
   extension?: string | null;
@@ -33,10 +35,160 @@ type ActivityEntry = {
   level: "info" | "error";
 };
 
+type RuleFormState = {
+  name: string;
+  extension: string;
+  name_pattern: string;
+  date_after: string;
+  date_before: string;
+  action_type: ActionType;
+  destination: string;
+  pattern: string;
+};
+
+const emptyForm: RuleFormState = {
+  name: "",
+  extension: "",
+  name_pattern: "",
+  date_after: "",
+  date_before: "",
+  action_type: "move",
+  destination: "",
+  pattern: "",
+};
+
+function RuleForm({ onSubmit, onCancel }: { onSubmit: (rule: Rule) => void; onCancel: () => void }) {
+  const [form, setForm] = useState<RuleFormState>(emptyForm);
+
+  const set = (key: keyof RuleFormState, value: string) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const criteria: MatchCriteria = {
+      extension: form.extension.trim() || null,
+      name_pattern: form.name_pattern.trim() || null,
+      date_after: form.date_after.trim() || null,
+      date_before: form.date_before.trim() || null,
+    };
+    const action: RuleAction =
+      form.action_type === "move"
+        ? { type: "move", destination: form.destination.trim() }
+        : form.action_type === "copy"
+          ? { type: "copy", destination: form.destination.trim() }
+          : { type: "rename", pattern: form.pattern.trim() };
+    onSubmit({
+      name: form.name.trim(),
+      match_criteria: criteria,
+      action,
+    });
+  }
+
+  return (
+    <form className="rule-form" onSubmit={handleSubmit}>
+      <label>
+        Rule name *
+        <input
+          value={form.name}
+          onChange={(e) => set("name", e.currentTarget.value)}
+          placeholder="Sort PDFs"
+          required
+        />
+      </label>
+
+      <fieldset>
+        <legend>Match</legend>
+        <label>
+          Extension
+          <input
+            value={form.extension}
+            onChange={(e) => set("extension", e.currentTarget.value)}
+            placeholder="pdf"
+          />
+        </label>
+        <label>
+          Name pattern
+          <input
+            value={form.name_pattern}
+            onChange={(e) => set("name_pattern", e.currentTarget.value)}
+            placeholder="*invoice*"
+          />
+        </label>
+        <div className="row-grid">
+          <label>
+            Modified after (YYYY-MM-DD)
+            <input
+              type="date"
+              value={form.date_after}
+              onChange={(e) => set("date_after", e.currentTarget.value)}
+            />
+          </label>
+          <label>
+            Modified before (YYYY-MM-DD)
+            <input
+              type="date"
+              value={form.date_before}
+              onChange={(e) => set("date_before", e.currentTarget.value)}
+            />
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Action</legend>
+        <div className="action-type">
+          {(["move", "copy", "rename"] as ActionType[]).map((t) => (
+            <label key={t}>
+              <input
+                type="radio"
+                name="action_type"
+                value={t}
+                checked={form.action_type === t}
+                onChange={() => set("action_type", t)}
+              />
+              {t}
+            </label>
+          ))}
+        </div>
+
+        {form.action_type === "rename" ? (
+          <label>
+            Rename pattern (use {"{name}"} for filename)
+            <input
+              value={form.pattern}
+              onChange={(e) => set("pattern", e.currentTarget.value)}
+              placeholder="report_{name}"
+              required
+            />
+          </label>
+        ) : (
+          <label>
+            Destination folder *
+            <input
+              value={form.destination}
+              onChange={(e) => set("destination", e.currentTarget.value)}
+              placeholder="D:\Temp"
+              required
+            />
+          </label>
+        )}
+      </fieldset>
+
+      <div className="form-actions">
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="submit">Add rule</button>
+      </div>
+    </form>
+  );
+}
+
 function App() {
   const [watchedFolders, setWatchedFolders] = useState<string[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [showForm, setShowForm] = useState(false);
 
   const log = useCallback((message: string, level: "info" | "error" = "info") => {
     setActivity((prev) => [...prev, { id: Date.now() + Math.random(), message, level }]);
@@ -78,6 +230,13 @@ function App() {
     setRules(updated);
   }
 
+  async function addRule(rule: Rule) {
+    const updated = await invoke<Rule[]>("add_rule", { rule });
+    setRules(updated);
+    setShowForm(false);
+    log(`Added rule: ${rule.name}`);
+  }
+
   return (
     <main className="app">
       <header className="app-header">
@@ -102,11 +261,18 @@ function App() {
       </section>
 
       <section className="panel">
-        <h2>Rules</h2>
+        <div className="panel-header">
+          <h2>Rules</h2>
+          <button onClick={() => setShowForm(true)}>+ Add rule</button>
+        </div>
+
+        {showForm && (
+          <RuleForm onSubmit={addRule} onCancel={() => setShowForm(false)} />
+        )}
+
         {rules.length === 0 ? (
           <p className="empty">
-            No rules defined. Add rules to{" "}
-            <code>config.json</code> in the app config directory, then restart.
+            No rules defined yet. Add your first rule with the button above.
           </p>
         ) : (
           <ul className="rule-list">
