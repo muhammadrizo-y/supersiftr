@@ -28,12 +28,35 @@ pub enum RuleAction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rule {
     pub name: String,
+    /// Folders this rule watches (recursively). Only files appearing under one
+    /// of these folders are eligible for this rule.
+    #[serde(default)]
+    pub watched_folders: Vec<String>,
     #[serde(default)]
     pub match_criteria: MatchCriteria,
     pub action: RuleAction,
 }
 
 impl Rule {
+    /// True if the file lives inside one of this rule's watched folders.
+    pub fn applies_to(&self, path: &Path) -> bool {
+        let file_path = if path.is_dir() {
+            path
+        } else {
+            match path.parent() {
+                Some(parent) => parent,
+                None => return false,
+            }
+        };
+        for folder in &self.watched_folders {
+            let folder_path = Path::new(folder);
+            if file_path.starts_with(folder_path) {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn matches(&self, path: &Path) -> bool {
         let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
             return false;
@@ -94,6 +117,7 @@ mod tests {
     fn matches_extension() {
         let rule = Rule {
             name: "PDFs".into(),
+            watched_folders: vec!["C:/Downloads".into()],
             match_criteria: MatchCriteria {
                 extension: Some("pdf".into()),
                 name_pattern: None,
@@ -112,6 +136,7 @@ mod tests {
     fn matches_name_pattern() {
         let rule = Rule {
             name: "Invoices".into(),
+            watched_folders: vec!["C:/Downloads".into()],
             match_criteria: MatchCriteria {
                 extension: None,
                 name_pattern: Some("*invoice*".into()),
@@ -124,6 +149,21 @@ mod tests {
         };
         assert!(rule.matches(Path::new("invoice_001.pdf")));
         assert!(!rule.matches(Path::new("receipt_001.pdf")));
+    }
+
+    #[test]
+    fn applies_to_watched_folder() {
+        let rule = Rule {
+            name: "PDFs".into(),
+            watched_folders: vec!["C:/Downloads".into()],
+            match_criteria: MatchCriteria::default(),
+            action: RuleAction::Move {
+                destination: "C:/tmp".into(),
+            },
+        };
+        assert!(rule.applies_to(Path::new("C:/Downloads/doc.pdf")));
+        assert!(rule.applies_to(Path::new("C:/Downloads/Sub/doc.pdf")));
+        assert!(!rule.applies_to(Path::new("C:/Documents/doc.pdf")));
     }
 
     #[test]
@@ -146,6 +186,7 @@ mod tests {
         // including explicit nulls for unused match criteria.
         let json = serde_json::json!({
             "name": "Images",
+            "watched_folders": ["C:\\Downloads"],
             "match_criteria": {
                 "extension": null,
                 "name_pattern": null,
@@ -156,6 +197,7 @@ mod tests {
         });
         let rule: Rule = serde_json::from_value(json).unwrap();
         assert_eq!(rule.name, "Images");
+        assert_eq!(rule.watched_folders, vec!["C:\\Downloads"]);
         assert_eq!(rule.match_criteria.extension, None);
         match rule.action {
             RuleAction::Copy { destination } => assert_eq!(destination, "D:\\Pictures"),

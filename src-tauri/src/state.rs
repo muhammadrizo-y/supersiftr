@@ -40,7 +40,7 @@ impl AppState {
 
         let folders: Vec<String> = {
             let cfg = state.config.lock().unwrap();
-            cfg.watched_folders.clone()
+            collect_watch_folders(&cfg.rules)
         };
 
         {
@@ -79,6 +79,9 @@ impl AppState {
         }
 
         for rule in &rules {
+            if !rule.applies_to(&path) {
+                continue;
+            }
             if rule.matches(&path) {
                 match actions::execute(&path, &rule.action) {
                     Ok(dest) => {
@@ -126,4 +129,17 @@ fn action_verb(action: &RuleAction) -> &'static str {
         RuleAction::Copy { .. } => "Copied",
         RuleAction::Rename { .. } => "Renamed",
     }
+}
+
+/// Returns the deduplicated set of folders watched across all rules.
+fn collect_watch_folders(rules: &[Rule]) -> Vec<String> {
+    let mut folders: Vec<String> = Vec::new();
+    for rule in rules {
+        for folder in &rule.watched_folders {
+            if !folders.contains(folder) {
+                folders.push(folder.clone());
+            }
+        }
+    }
+    folders
 }

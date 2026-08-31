@@ -9,17 +9,12 @@ use crate::rules::Rule;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
-    pub watched_folders: Vec<String>,
-    #[serde(default)]
     pub rules: Vec<Rule>,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
-        Self {
-            watched_folders: Vec::new(),
-            rules: Vec::new(),
-        }
+        Self { rules: Vec::new() }
     }
 }
 
@@ -68,16 +63,15 @@ mod tests {
     #[test]
     fn default_config_is_empty() {
         let config = AppConfig::default();
-        assert!(config.watched_folders.is_empty());
         assert!(config.rules.is_empty());
     }
 
     #[test]
     fn roundtrip_serialization() {
         let config = AppConfig {
-            watched_folders: vec!["C:/Downloads".into()],
             rules: vec![Rule {
                 name: "PDFs".into(),
+                watched_folders: vec!["C:/Downloads".into()],
                 match_criteria: Default::default(),
                 action: crate::rules::RuleAction::Move {
                     destination: "C:/Documents".into(),
@@ -86,8 +80,8 @@ mod tests {
         };
         let json = serde_json::to_string(&config).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.watched_folders, config.watched_folders);
         assert_eq!(back.rules.len(), 1);
         assert_eq!(back.rules[0].name, "PDFs");
+        assert_eq!(back.rules[0].watched_folders, vec!["C:/Downloads"]);
     }
 }

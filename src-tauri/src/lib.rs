@@ -17,44 +17,6 @@ fn get_config(state: State<'_, AppState>) -> AppConfig {
 }
 
 #[tauri::command]
-fn get_watched_folders(state: State<'_, AppState>) -> Vec<String> {
-    state
-        .watcher
-        .lock()
-        .unwrap()
-        .watched_paths()
-        .iter()
-        .map(|p| p.to_string_lossy().to_string())
-        .collect()
-}
-
-#[tauri::command]
-fn add_watched_folder(path: String, app: tauri::AppHandle) -> Result<Vec<String>, String> {
-    {
-        let state = app.state::<AppState>();
-        let mut cfg = state.config.lock().unwrap();
-        if !cfg.watched_folders.contains(&path) {
-            cfg.watched_folders.push(path.clone());
-        }
-        config::save(&cfg).map_err(|e| e.to_string())?;
-    }
-    AppState::restart_watchers(&app)?;
-    Ok(get_watched_folders(app.state::<AppState>()))
-}
-
-#[tauri::command]
-fn remove_watched_folder(path: String, app: tauri::AppHandle) -> Result<Vec<String>, String> {
-    {
-        let state = app.state::<AppState>();
-        let mut cfg = state.config.lock().unwrap();
-        cfg.watched_folders.retain(|p| p != &path);
-        config::save(&cfg).map_err(|e| e.to_string())?;
-    }
-    AppState::restart_watchers(&app)?;
-    Ok(get_watched_folders(app.state::<AppState>()))
-}
-
-#[tauri::command]
 fn add_rule(rule: Rule, app: tauri::AppHandle) -> Result<Vec<Rule>, String> {
     {
         let state = app.state::<AppState>();
@@ -106,9 +68,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_config,
-            get_watched_folders,
-            add_watched_folder,
-            remove_watched_folder,
             add_rule,
             remove_rule,
             get_logs,
