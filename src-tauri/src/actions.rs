@@ -39,7 +39,7 @@ pub fn execute(source: &Path, action: &RuleAction) -> Result<PathBuf, ActionErro
     match action {
         RuleAction::Move { destination } => {
             let dest = resolve_destination(source, destination);
-            retry(|| fs::rename(source, &dest))?;
+            move_file(source, &dest)?;
             Ok(dest)
         }
         RuleAction::Copy { destination } => {
@@ -72,6 +72,32 @@ fn resolve_destination(source: &Path, destination: &str) -> PathBuf {
         dest.push(name);
     }
     dest
+}
+
+/// Moves `source` to `dest`. On Windows, `fs::rename` cannot move a file
+/// across disk volumes (e.g. C: -> D:), so detect that case and fall back to a
+/// copy-then-delete. Both paths honor the sharing-violation retry.
+fn move_file(source: &Path, dest: &Path) -> std::io::Result<()> {
+    match retry(|| fs::rename(source, dest)) {
+        Ok(()) => Ok(()),
+        Err(e) if is_cross_device(&e) => {
+            retry(|| fs::copy(source, dest).map(|_| ()))?;
+            retry(|| fs::remove_file(source))?;
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn is_cross_device(err: &std::io::Error) -> bool {
+    #[cfg(windows)]
+    {
+        err.raw_os_error() == Some(17) // ERROR_NOT_SAME_DEVICE
+    }
+    #[cfg(not(windows))]
+    {
+        err.kind() == std::io::ErrorKind::CrossesDevices
+    }
 }
 
 fn retry<F>(mut op: F) -> std::io::Result<()>
