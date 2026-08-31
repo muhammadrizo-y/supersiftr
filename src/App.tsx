@@ -1,49 +1,152 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+type RuleAction =
+  | { type: "Move"; destination: string }
+  | { type: "Copy"; destination: string }
+  | { type: "Rename"; pattern: string };
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+type MatchCriteria = {
+  extension?: string | null;
+  name_pattern?: string | null;
+  date_after?: string | null;
+  date_before?: string | null;
+};
+
+type Rule = {
+  name: string;
+  match_criteria: MatchCriteria;
+  action: RuleAction;
+};
+
+type AppConfig = {
+  watched_folders: string[];
+  rules: Rule[];
+};
+
+type ActivityEntry = {
+  id: number;
+  message: string;
+  level: "info" | "error";
+};
+
+function App() {
+  const [watchedFolders, setWatchedFolders] = useState<string[]>([]);
+  const [rules, setRules] = useState<Rule[]>([]);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+
+  const log = useCallback((message: string, level: "info" | "error" = "info") => {
+    setActivity((prev) => [...prev, { id: Date.now() + Math.random(), message, level }]);
+  }, []);
+
+  useEffect(() => {
+    invoke<string[]>("get_watched_folders").then(setWatchedFolders);
+    invoke<AppConfig>("get_config").then((config) => setRules(config.rules));
+
+    const unlistenFile = listen<{ path: string; kind: string }>("file-event", (e) => {
+      log(`${e.payload.kind}: ${e.payload.path}`);
+    });
+    const unlistenApplied = listen<{ rule: string; source: string; destination: string }>(
+      "rule-applied",
+      (e) => {
+        log(`[${e.payload.rule}] ${e.payload.source} -> ${e.payload.destination}`);
+      },
+    );
+    const unlistenError = listen<{ rule: string; path: string; error: string }>(
+      "rule-error",
+      (e) => {
+        log(`[${e.payload.rule}] ${e.payload.path}: ${e.payload.error}`, "error");
+      },
+    );
+
+    return () => {
+      unlistenFile.then((f) => f());
+      unlistenApplied.then((f) => f());
+      unlistenError.then((f) => f());
+    };
+  }, [log]);
+
+  async function pickFolder() {
+    const selected = await open({ directory: true, multiple: false });
+    if (typeof selected === "string") {
+      const folders = await invoke<string[]>("add_watched_folder", { path: selected });
+      setWatchedFolders(folders);
+      log(`Watching ${selected}`);
+    }
+  }
+
+  async function removeFolder(path: string) {
+    const folders = await invoke<string[]>("remove_watched_folder", { path });
+    setWatchedFolders(folders);
+    log(`Stopped watching ${path}`);
+  }
+
+  async function removeRule(index: number) {
+    const updated = await invoke<Rule[]>("remove_rule", { index });
+    setRules(updated);
   }
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <main className="app">
+      <header className="app-header">
+        <h1>File Automation</h1>
+        <button onClick={pickFolder}>+ Add folder to watch</button>
+      </header>
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+      <section className="panel">
+        <h2>Watched Folders</h2>
+        {watchedFolders.length === 0 ? (
+          <p className="empty">No folders being watched yet.</p>
+        ) : (
+          <ul className="folder-list">
+            {watchedFolders.map((folder) => (
+              <li key={folder}>
+                <span>{folder}</span>
+                <button onClick={() => removeFolder(folder)}>Remove</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+      <section className="panel">
+        <h2>Rules</h2>
+        {rules.length === 0 ? (
+          <p className="empty">
+            No rules defined. Add rules to{" "}
+            <code>config.json</code> in the app config directory, then restart.
+          </p>
+        ) : (
+          <ul className="rule-list">
+            {rules.map((rule, i) => (
+              <li key={i}>
+                <div className="rule-name">
+                  <strong>{rule.name}</strong>
+                  <button onClick={() => removeRule(i)}>Remove</button>
+                </div>
+                <pre>{JSON.stringify(rule, null, 2)}</pre>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Activity</h2>
+        <ul className="activity-list">
+          {activity
+            .slice()
+            .reverse()
+            .map((entry) => (
+              <li key={entry.id} className={entry.level}>
+                {entry.message}
+              </li>
+            ))}
+        </ul>
+      </section>
     </main>
   );
 }
