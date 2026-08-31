@@ -6,6 +6,8 @@ use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent};
 use tauri::Emitter;
 
+const DEBOUNCE_MS: u64 = 500;
+
 #[derive(Clone, serde::Serialize)]
 pub struct FileEvent {
     pub path: String,
@@ -14,7 +16,7 @@ pub struct FileEvent {
 
 pub struct FileWatcher {
     watched_paths: Vec<PathBuf>,
-    stop_tx: Option<mpsc::Sender<()>>,
+    stop_txs: Vec<mpsc::Sender<()>>,
 }
 
 impl Default for FileWatcher {
@@ -27,7 +29,7 @@ impl FileWatcher {
     pub fn new() -> Self {
         Self {
             watched_paths: Vec::new(),
-            stop_tx: None,
+            stop_txs: Vec::new(),
         }
     }
 
@@ -44,10 +46,10 @@ impl FileWatcher {
         P: Fn(PathBuf) + Send + 'static,
     {
         let (stop_tx, stop_rx) = mpsc::channel::<()>();
-        self.stop_tx = Some(stop_tx);
+        self.stop_txs.push(stop_tx);
 
         let mut debouncer = new_debouncer(
-            Duration::from_millis(500),
+            Duration::from_millis(DEBOUNCE_MS),
             move |result: Result<Vec<DebouncedEvent>, _>| {
                 if let Ok(events) = result {
                     for event in events {
@@ -79,8 +81,45 @@ impl FileWatcher {
         Ok(())
     }
 
+    /// Watches a single file (non-recursive) and invokes `on_change` when the
+    /// file is modified. Used to hot-reload the config file.
+    pub fn watch_file<F>(
+        &mut self,
+        path: PathBuf,
+        on_change: F,
+    ) -> Result<(), String>
+    where
+        F: Fn() + Send + 'static,
+    {
+        let (stop_tx, stop_rx) = mpsc::channel::<()>();
+        self.stop_txs.push(stop_tx);
+
+        let mut debouncer = new_debouncer(
+            Duration::from_millis(DEBOUNCE_MS),
+            move |result: Result<Vec<DebouncedEvent>, _>| {
+                if let Ok(events) = result {
+                    let _ = events; // any event on the file means it changed
+                    on_change();
+                }
+            },
+        )
+        .map_err(|e| format!("Failed to create debouncer: {e}"))?;
+
+        debouncer
+            .watcher()
+            .watch(&path, RecursiveMode::NonRecursive)
+            .map_err(|e| format!("Failed to watch file: {e}"))?;
+
+        std::thread::spawn(move || {
+            let _ = stop_rx.recv();
+            drop(debouncer);
+        });
+
+        Ok(())
+    }
+
     pub fn stop(&mut self) {
-        if let Some(tx) = self.stop_tx.take() {
+        for tx in self.stop_txs.drain(..) {
             let _ = tx.send(());
         }
         self.watched_paths.clear();

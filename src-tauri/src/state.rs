@@ -52,6 +52,15 @@ impl AppState {
                     },
                 )?;
             }
+
+            // Hot-reload the config file: any edit restarts watchers against
+            // the freshly loaded config.
+            if let Ok(path) = config::config_path() {
+                let app = app.clone();
+                watcher.watch_file(path, move || {
+                    let _ = Self::reload(&app);
+                })?;
+            }
         }
         Ok(())
     }
