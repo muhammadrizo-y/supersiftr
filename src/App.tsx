@@ -20,12 +20,12 @@ type MatchCriteria = {
 
 type Rule = {
   name: string;
+  watched_folders: string[];
   match_criteria: MatchCriteria;
   action: RuleAction;
 };
 
 type AppConfig = {
-  watched_folders: string[];
   rules: Rule[];
 };
 
@@ -37,6 +37,7 @@ type ActivityEntry = {
 
 type RuleFormState = {
   name: string;
+  watched_folders: string[];
   extension: string;
   name_pattern: string;
   date_after: string;
@@ -48,6 +49,7 @@ type RuleFormState = {
 
 const emptyForm: RuleFormState = {
   name: "",
+  watched_folders: [],
   extension: "",
   name_pattern: "",
   date_after: "",
@@ -57,11 +59,35 @@ const emptyForm: RuleFormState = {
   pattern: "",
 };
 
+async function pickFolder(): Promise<string | null> {
+  const selected = await open({ directory: true, multiple: false });
+  return typeof selected === "string" ? selected : null;
+}
+
 function RuleForm({ onSubmit, onCancel }: { onSubmit: (rule: Rule) => void; onCancel: () => void }) {
   const [form, setForm] = useState<RuleFormState>(emptyForm);
 
-  const set = (key: keyof RuleFormState, value: string) =>
+  const set = <K extends keyof RuleFormState>(key: K, value: RuleFormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  async function addWatchedFolder() {
+    const folder = await pickFolder();
+    if (folder && !form.watched_folders.includes(folder)) {
+      set("watched_folders", [...form.watched_folders, folder]);
+    }
+  }
+
+  function removeWatchedFolder(folder: string) {
+    set(
+      "watched_folders",
+      form.watched_folders.filter((f) => f !== folder),
+    );
+  }
+
+  async function chooseDestination() {
+    const folder = await pickFolder();
+    if (folder) set("destination", folder);
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +105,7 @@ function RuleForm({ onSubmit, onCancel }: { onSubmit: (rule: Rule) => void; onCa
           : { type: "rename", pattern: form.pattern.trim() };
     onSubmit({
       name: form.name.trim(),
+      watched_folders: form.watched_folders,
       match_criteria: criteria,
       action,
     });
@@ -95,6 +122,28 @@ function RuleForm({ onSubmit, onCancel }: { onSubmit: (rule: Rule) => void; onCa
           required
         />
       </label>
+
+      <fieldset>
+        <legend>Watch these folders</legend>
+        <p className="hint">Files added to any of these folders will be checked against this rule.</p>
+        {form.watched_folders.length === 0 ? (
+          <p className="empty">No folders selected yet.</p>
+        ) : (
+          <ul className="folder-list">
+            {form.watched_folders.map((folder) => (
+              <li key={folder}>
+                <span>{folder}</span>
+                <button type="button" onClick={() => removeWatchedFolder(folder)}>
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button type="button" onClick={addWatchedFolder} className="secondary">
+          + Add folder
+        </button>
+      </fieldset>
 
       <fieldset>
         <legend>Match</legend>
@@ -162,15 +211,20 @@ function RuleForm({ onSubmit, onCancel }: { onSubmit: (rule: Rule) => void; onCa
             />
           </label>
         ) : (
-          <label>
-            Destination folder *
-            <input
-              value={form.destination}
-              onChange={(e) => set("destination", e.currentTarget.value)}
-              placeholder="D:\Temp"
-              required
-            />
-          </label>
+          <div>
+            <span className="field-label">Destination folder *</span>
+            <div className="picker-row">
+              <input
+                value={form.destination}
+                onChange={(e) => set("destination", e.currentTarget.value)}
+                placeholder="D:\Temp"
+                required
+              />
+              <button type="button" onClick={chooseDestination}>
+                Browse…
+              </button>
+            </div>
+          </div>
         )}
       </fieldset>
 
@@ -185,7 +239,6 @@ function RuleForm({ onSubmit, onCancel }: { onSubmit: (rule: Rule) => void; onCa
 }
 
 function App() {
-  const [watchedFolders, setWatchedFolders] = useState<string[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -195,7 +248,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    invoke<string[]>("get_watched_folders").then(setWatchedFolders);
     invoke<AppConfig>("get_config").then((config) => setRules(config.rules));
     invoke<string[]>("get_logs", { count: 200 }).then((logs) =>
       setActivity(logs.map((l, i) => ({ id: i, message: l, level: "info" }))),
@@ -209,21 +261,6 @@ function App() {
       unlistenLog.then((f) => f());
     };
   }, [log]);
-
-  async function pickFolder() {
-    const selected = await open({ directory: true, multiple: false });
-    if (typeof selected === "string") {
-      const folders = await invoke<string[]>("add_watched_folder", { path: selected });
-      setWatchedFolders(folders);
-      log(`Watching ${selected}`);
-    }
-  }
-
-  async function removeFolder(path: string) {
-    const folders = await invoke<string[]>("remove_watched_folder", { path });
-    setWatchedFolders(folders);
-    log(`Stopped watching ${path}`);
-  }
 
   async function removeRule(index: number) {
     const updated = await invoke<Rule[]>("remove_rule", { index });
@@ -241,24 +278,8 @@ function App() {
     <main className="app">
       <header className="app-header">
         <h1>File Automation</h1>
-        <button onClick={pickFolder}>+ Add folder to watch</button>
+        <button onClick={() => setShowForm(true)}>+ Add rule</button>
       </header>
-
-      <section className="panel">
-        <h2>Watched Folders</h2>
-        {watchedFolders.length === 0 ? (
-          <p className="empty">No folders being watched yet.</p>
-        ) : (
-          <ul className="folder-list">
-            {watchedFolders.map((folder) => (
-              <li key={folder}>
-                <span>{folder}</span>
-                <button onClick={() => removeFolder(folder)}>Remove</button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
 
       <section className="panel">
         <div className="panel-header">
@@ -266,9 +287,7 @@ function App() {
           <button onClick={() => setShowForm(true)}>+ Add rule</button>
         </div>
 
-        {showForm && (
-          <RuleForm onSubmit={addRule} onCancel={() => setShowForm(false)} />
-        )}
+        {showForm && <RuleForm onSubmit={addRule} onCancel={() => setShowForm(false)} />}
 
         {rules.length === 0 ? (
           <p className="empty">
