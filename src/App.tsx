@@ -45,27 +45,16 @@ function App() {
   useEffect(() => {
     invoke<string[]>("get_watched_folders").then(setWatchedFolders);
     invoke<AppConfig>("get_config").then((config) => setRules(config.rules));
+    invoke<string[]>("get_logs", { count: 200 }).then((logs) =>
+      setActivity(logs.map((l, i) => ({ id: i, message: l, level: "info" }))),
+    );
 
-    const unlistenFile = listen<{ path: string; kind: string }>("file-event", (e) => {
-      log(`${e.payload.kind}: ${e.payload.path}`);
+    const unlistenLog = listen<{ level: string; message: string }>("log-entry", (e) => {
+      log(e.payload.message, e.payload.level === "error" ? "error" : "info");
     });
-    const unlistenApplied = listen<{ rule: string; source: string; destination: string }>(
-      "rule-applied",
-      (e) => {
-        log(`[${e.payload.rule}] ${e.payload.source} -> ${e.payload.destination}`);
-      },
-    );
-    const unlistenError = listen<{ rule: string; path: string; error: string }>(
-      "rule-error",
-      (e) => {
-        log(`[${e.payload.rule}] ${e.payload.path}: ${e.payload.error}`, "error");
-      },
-    );
 
     return () => {
-      unlistenFile.then((f) => f());
-      unlistenApplied.then((f) => f());
-      unlistenError.then((f) => f());
+      unlistenLog.then((f) => f());
     };
   }, [log]);
 

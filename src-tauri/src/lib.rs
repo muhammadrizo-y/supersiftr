@@ -1,10 +1,11 @@
 pub mod actions;
 pub mod config;
+pub mod logging;
 pub mod rules;
 pub mod state;
 pub mod watcher;
 
-use tauri::{Emitter, Manager, State};
+use tauri::{Manager, State};
 
 use crate::config::AppConfig;
 use crate::rules::Rule;
@@ -82,23 +83,25 @@ fn get_rules(state: State<'_, AppState>) -> Vec<Rule> {
     state.config.lock().unwrap().rules.clone()
 }
 
+#[tauri::command]
+fn get_logs(state: State<'_, AppState>, count: Option<usize>) -> Vec<String> {
+    state.log.read_tail(count.unwrap_or(200))
+}
+
+#[tauri::command]
+fn get_log_path(state: State<'_, AppState>) -> String {
+    state.log.path().to_string_lossy().to_string()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let startup_config: AppConfig = {
-        let s = AppState::new();
-        let cfg = s.config.lock().unwrap().clone();
-        std::mem::drop(s);
-        cfg
-    };
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(AppState::new())
-        .setup(move |app| {
+        .setup(|app| {
             AppState::restart_watchers(app.handle()).map_err(|e| format!("setup: {e}"))?;
-            let _ = app.emit("config-loaded", &startup_config);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -107,7 +110,9 @@ pub fn run() {
             add_watched_folder,
             remove_watched_folder,
             add_rule,
-            remove_rule
+            remove_rule,
+            get_logs,
+            get_log_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

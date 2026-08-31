@@ -4,15 +4,8 @@ use std::time::Duration;
 
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent};
-use tauri::Emitter;
 
 const DEBOUNCE_MS: u64 = 500;
-
-#[derive(Clone, serde::Serialize)]
-pub struct FileEvent {
-    pub path: String,
-    pub kind: String,
-}
 
 pub struct FileWatcher {
     watched_paths: Vec<PathBuf>,
@@ -34,12 +27,10 @@ impl FileWatcher {
     }
 
     /// Watches a path recursively. Every debounced file event triggers the
-    /// `processor` callback (on the watcher thread) and is also emitted to the
-    /// frontend as a `file-event` for UI visibility.
+    /// `processor` callback (on the watcher thread).
     pub fn watch<P>(
         &mut self,
         path: PathBuf,
-        app: tauri::AppHandle,
         processor: P,
     ) -> Result<(), String>
     where
@@ -53,12 +44,6 @@ impl FileWatcher {
             move |result: Result<Vec<DebouncedEvent>, _>| {
                 if let Ok(events) = result {
                     for event in events {
-                        let kind = format!("{:?}", event.kind);
-                        let file_event = FileEvent {
-                            path: event.path.to_string_lossy().to_string(),
-                            kind,
-                        };
-                        let _ = app.emit("file-event", file_event);
                         processor(event.path);
                     }
                 }

@@ -1,22 +1,26 @@
 use std::sync::Mutex;
 
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 use crate::actions;
 use crate::config::{self, AppConfig};
-use crate::rules::Rule;
+use crate::logging::ActivityLog;
+use crate::rules::{Rule, RuleAction};
 use crate::watcher::FileWatcher;
 
 pub struct AppState {
     pub watcher: Mutex<FileWatcher>,
     pub config: Mutex<AppConfig>,
+    pub log: ActivityLog,
 }
 
 impl AppState {
     pub fn new() -> Self {
+        let config_dir = config::config_dir().unwrap_or_default();
         Self {
             watcher: Mutex::new(FileWatcher::new()),
             config: Mutex::new(config::load().unwrap_or_default()),
+            log: ActivityLog::new(config_dir),
         }
     }
 
@@ -44,13 +48,9 @@ impl AppState {
             watcher.stop();
             for folder in folders {
                 let app = app.clone();
-                watcher.watch(
-                    folder.into(),
-                    app.clone(),
-                    move |path| {
-                        Self::process(app.clone(), path);
-                    },
-                )?;
+                watcher.watch(folder.into(), move |path| {
+                    Self::process(app.clone(), path);
+                })?;
             }
 
             // Hot-reload the config file: any edit restarts watchers against
@@ -66,39 +66,64 @@ impl AppState {
     }
 
     /// Applies rules to `path`. Called from the watcher thread on every event.
+    /// Skips files that no longer exist (already handled by a prior event).
     pub fn process(app: tauri::AppHandle, path: std::path::PathBuf) {
+        let state = app.state::<AppState>();
         let rules: Vec<Rule> = {
-            let state = app.state::<AppState>();
             let cfg = state.config.lock().unwrap();
             cfg.rules.clone()
         };
+
+        if !path.is_file() {
+            return;
+        }
 
         for rule in &rules {
             if rule.matches(&path) {
                 match actions::execute(&path, &rule.action) {
                     Ok(dest) => {
-                        let _ = app.emit(
-                            "rule-applied",
-                            serde_json::json!({
-                                "rule": rule.name,
-                                "source": path.to_string_lossy(),
-                                "destination": dest.to_string_lossy(),
-                            }),
+                        let verb = action_verb(&rule.action);
+                        state.log.write(
+                            &app,
+                            "info",
+                            &format!(
+                                "[{}] {verb} \"{}\" -> \"{}\"",
+                                rule.name,
+                                path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+                                dest.to_string_lossy(),
+                            ),
                         );
                     }
+                    Err(actions::ActionError::SourceNotFound(_)) => {
+                        // The file was already moved by an earlier duplicate
+                        // event; not an error, so just ignore it.
+                    }
                     Err(e) => {
-                        let _ = app.emit(
-                            "rule-error",
-                            serde_json::json!({
-                                "rule": rule.name,
-                                "path": path.to_string_lossy(),
-                                "error": e.to_string(),
-                            }),
+                        let mut error = e.to_string();
+                        // Trim the redundant path prefix.
+                        if let Some(pos) = error.find(": ") {
+                            let shorthand = &error[pos + 2..];
+                            if !shorthand.is_empty() {
+                                error = shorthand.to_string();
+                            }
+                        }
+                        state.log.write(
+                            &app,
+                            "error",
+                            &format!("[{}] \"{}\": {error}", rule.name, path.to_string_lossy()),
                         );
                     }
                 }
                 break;
             }
         }
+    }
+}
+
+fn action_verb(action: &RuleAction) -> &'static str {
+    match action {
+        RuleAction::Move { .. } => "Moved",
+        RuleAction::Copy { .. } => "Copied",
+        RuleAction::Rename { .. } => "Renamed",
     }
 }
