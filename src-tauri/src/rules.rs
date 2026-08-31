@@ -18,7 +18,7 @@ pub struct MatchCriteria {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleAction {
     Move { destination: String },
     Copy { destination: String },
@@ -124,5 +124,19 @@ mod tests {
         };
         assert!(rule.matches(Path::new("invoice_001.pdf")));
         assert!(!rule.matches(Path::new("receipt_001.pdf")));
+    }
+
+    #[test]
+    fn deserializes_lowercase_action_tags() {
+        let json = r#"{
+            "name": "Sort PDFs",
+            "match_criteria": { "extension": "pdf" },
+            "action": { "type": "move", "destination": "D:\\Temp" }
+        }"#;
+        let rule: Rule = serde_json::from_str(json).unwrap();
+        match rule.action {
+            RuleAction::Move { destination } => assert_eq!(destination, "D:\\Temp"),
+            _ => panic!("expected Move action"),
+        }
     }
 }
