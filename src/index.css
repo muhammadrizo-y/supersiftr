@@ -86,11 +86,11 @@
 
   html,
   body {
-    @apply overscroll-none;
+    @apply h-full overscroll-none;
   }
 
   body {
-    @apply bg-background font-sans text-foreground antialiased;
+    @apply h-full overflow-hidden bg-background font-sans text-foreground antialiased;
     user-select: none;
     -webkit-user-select: none;
   }

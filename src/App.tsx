@@ -1,16 +1,14 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  Activity,
   Check,
   Folder,
   Minus,
   Pencil,
   Plus,
-  Settings,
   Square,
   Trash2,
   TriangleAlert,
@@ -34,44 +32,17 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-
-type RuleAction =
-  | { type: "move"; destination: string }
-  | { type: "copy"; destination: string }
-  | { type: "rename"; pattern: string };
-
-type ActionType = RuleAction["type"];
-
-type MatchCriteria = {
-  extension: string[];
-  name_pattern?: string | null;
-  date_after?: string | null;
-  date_before?: string | null;
-};
-
-type Preset = {
-  name: string;
-  title: string;
-  extensions: string[];
-};
-
-type Rule = {
-  name: string;
-  watched_folders: string[];
-  kind: string[];
-  match_criteria: MatchCriteria;
-  action: RuleAction;
-};
-
-type AppConfig = {
-  rules: Rule[];
-};
-
-type ActivityEntry = {
-  id: number;
-  message: string;
-  level: "info" | "error";
-};
+import type {
+  ActionType,
+  AppConfig,
+  ActivityEntry,
+  MatchCriteria,
+  Preset,
+  Rule,
+  RuleAction,
+  View,
+} from "@/types";
+import Sidebar from "@/components/Sidebar";
 
 type RuleFormState = {
   name: string;
@@ -569,12 +540,6 @@ function describeAction(action: RuleAction): string {
   }
 }
 
-type View =
-  | { kind: "rule"; index: number }
-  | { kind: "new" }
-  | { kind: "activity" }
-  | { kind: "settings" };
-
 function TitleBar() {
   const appWindow = getCurrentWindow();
 
@@ -616,34 +581,6 @@ function TitleBar() {
         </button>
       </div>
     </header>
-  );
-}
-
-function SidebarTab({
-  label,
-  icon,
-  active,
-  onClick,
-}: {
-  label: string;
-  icon: ReactNode;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex h-9 w-full cursor-pointer items-center gap-2.5 px-3 text-sm font-medium transition-colors",
-        active
-          ? "bg-accent text-accent-foreground"
-          : "text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground",
-      )}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }
 
@@ -996,77 +933,15 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen select-none flex-col">
+    <div className="flex h-full select-none flex-col">
       <TitleBar />
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card">
-          <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
-            <h1 className="px-1 text-sm font-semibold">Rules</h1>
-            <Button
-              size="icon"
-              variant="ghost"
-              title="New rule"
-              onClick={() => setView({ kind: "new" })}
-            >
-              <Plus className="size-4" />
-            </Button>
-          </header>
-
-          <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-2">
-            {rules.map((rule, i) => (
-              <div
-                key={i}
-                role="button"
-                tabIndex={0}
-                onClick={() => setView({ kind: "rule", index: i })}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    setView({ kind: "rule", index: i });
-                  }
-                }}
-                className={cn(
-                  "group flex w-full cursor-pointer items-center justify-between gap-2 px-2 py-1.5 text-sm transition-colors",
-                  view.kind === "rule" && view.index === i
-                    ? "bg-accent text-accent-foreground"
-                    : "text-foreground hover:bg-accent/60",
-                )}
-              >
-                <span className="truncate">{rule.name}</span>
-                <button
-                  type="button"
-                  title="Delete rule"
-                  className="flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeRule(i);
-                  }}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              </div>
-            ))}
-            {rules.length === 0 && (
-              <p className="px-2 py-1 text-xs text-muted-foreground">
-                No rules yet.
-              </p>
-            )}
-          </nav>
-
-          <div className="shrink-0 border-t border-border p-2">
-            <SidebarTab
-              label="Activity"
-              icon={<Activity className="size-4" />}
-              active={view.kind === "activity"}
-              onClick={() => setView({ kind: "activity" })}
-            />
-            <SidebarTab
-              label="Settings"
-              icon={<Settings className="size-4" />}
-              active={view.kind === "settings"}
-              onClick={() => setView({ kind: "settings" })}
-            />
-          </div>
-        </aside>
+        <Sidebar
+          rules={rules}
+          view={view}
+          onSelect={setView}
+          onDelete={(index) => void removeRule(index)}
+        />
 
         <section className="min-w-0 flex-1 divide-y divide-border overflow-y-auto">
           {renderMain()}
