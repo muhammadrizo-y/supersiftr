@@ -20,27 +20,135 @@ body {
 }
 
 .app {
-  max-width: 900px;
+  display: flex;
+  height: 100vh;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 16px;
+  gap: 16px;
 }
 
-.app-header {
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  flex-shrink: 0;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 16px 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.sidebar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+  padding: 0 4px;
 }
 
-.app-header h1 {
+.sidebar-header h1 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  border-radius: 8px;
+}
+
+.sidebar-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sidebar-rule:hover {
+  background: #f0f0f0;
+}
+
+.sidebar-rule.active {
+  background: #e7eefc;
+  color: #1a4fd0;
+}
+
+.sidebar-rule-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-btn {
+  visibility: hidden;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 1rem;
+}
+
+.sidebar-rule:hover .trash-btn,
+.sidebar-rule:focus-within .trash-btn {
+  visibility: visible;
+}
+
+.sidebar-spacer {
+  flex: 1;
+}
+
+.sidebar-tab {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-weight: 500;
+}
+
+.sidebar-tab:hover {
+  background: #f0f0f0;
+}
+
+.sidebar-tab.active {
+  background: #e7eefc;
+  color: #1a4fd0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
 }
 
 .panel {
   background: #ffffff;
   border-radius: 10px;
-  padding: 16px 20px;
+  padding: 20px 24px;
   margin-bottom: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
@@ -49,17 +157,6 @@ body {
   margin: 0 0 12px;
   font-size: 1.05rem;
   font-weight: 600;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.panel-header h2 {
-  margin: 0;
 }
 
 .rule-form {
@@ -190,7 +287,6 @@ button:active {
 }
 
 .folder-list,
-.rule-list,
 .activity-list {
   list-style: none;
   margin: 0;
@@ -207,20 +303,6 @@ button:active {
 
 .folder-list li:last-child {
   border-bottom: none;
-}
-
-.rule-card {
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-}
-
-.rule-name {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
 }
 
 .rule-body {
@@ -273,7 +355,8 @@ button:active {
     background-color: #2f2f2f;
   }
 
-  .panel {
+  .panel,
+  .sidebar {
     background: #3a3a3a;
   }
 
@@ -287,8 +370,15 @@ button:active {
     background-color: #0f0f0f69;
   }
 
-  .rule-list pre {
-    background: #222;
+  .sidebar-rule:hover,
+  .sidebar-tab:hover {
+    background: #4a4a4a;
+  }
+
+  .sidebar-rule.active,
+  .sidebar-tab.active {
+    background: #274060;
+    color: #9fd0ff;
   }
 
   .rule-form {

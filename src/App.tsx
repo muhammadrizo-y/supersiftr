@@ -258,17 +258,25 @@ function describeAction(action: RuleAction): string {
   }
 }
 
+type View =
+  | { kind: "rule"; index: number }
+  | { kind: "new" }
+  | { kind: "activity" };
+
 function App() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
-  const [showForm, setShowForm] = useState(false);
+  const [view, setView] = useState<View>({ kind: "new" });
 
   const log = useCallback((message: string, level: "info" | "error" = "info") => {
     setActivity((prev) => [...prev, { id: Date.now() + Math.random(), message, level }]);
   }, []);
 
   useEffect(() => {
-    invoke<AppConfig>("get_config").then((config) => setRules(config.rules));
+    invoke<AppConfig>("get_config").then((config) => {
+      setRules(config.rules);
+      setView(config.rules.length ? { kind: "rule", index: 0 } : { kind: "new" });
+    });
     invoke<string[]>("get_logs", { count: 200 }).then((logs) =>
       setActivity(logs.map((l, i) => ({ id: i, message: l, level: "info" }))),
     );
@@ -285,78 +293,133 @@ function App() {
   async function removeRule(index: number) {
     const updated = await invoke<Rule[]>("remove_rule", { index });
     setRules(updated);
+    setView(updated.length ? { kind: "rule", index: 0 } : { kind: "new" });
   }
 
   async function addRule(rule: Rule) {
     const updated = await invoke<Rule[]>("add_rule", { rule });
     setRules(updated);
-    setShowForm(false);
+    setView({ kind: "rule", index: updated.length - 1 });
     log(`Added rule: ${rule.name}`);
+  }
+
+  function renderMain() {
+    if (view.kind === "new") {
+      return (
+        <section className="panel">
+          <h2>New rule</h2>
+          <RuleForm
+            onSubmit={addRule}
+            onCancel={() =>
+              setView(rules.length ? { kind: "rule", index: 0 } : { kind: "activity" })
+            }
+          />
+        </section>
+      );
+    }
+
+    if (view.kind === "activity") {
+      return (
+        <section className="panel">
+          <h2>Activity</h2>
+          <ul className="activity-list">
+            {activity
+              .slice()
+              .reverse()
+              .map((entry) => (
+                <li key={entry.id} className={entry.level}>
+                  {entry.message}
+                </li>
+              ))}
+          </ul>
+        </section>
+      );
+    }
+
+    const rule = rules[view.index];
+    if (!rule) {
+      return (
+        <section className="panel">
+          <p className="empty">No rule selected.</p>
+        </section>
+      );
+    }
+
+    return (
+      <section className="panel">
+        <h2>{rule.name}</h2>
+        <div className="rule-body">
+          <div className="rule-row">
+            <span className="rule-label">Watch</span>
+            <ul className="rule-folders">
+              {rule.watched_folders.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="rule-row">
+            <span className="rule-label">Match</span>
+            <span>{describeCriteria(rule.match_criteria)}</span>
+          </div>
+          <div className="rule-row">
+            <span className="rule-label">Action</span>
+            <span>{describeAction(rule.action)}</span>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (
     <main className="app">
-      <header className="app-header">
-        <h1>File Automation</h1>
-      </header>
+      <aside className="sidebar">
+        <header className="sidebar-header">
+          <h1>File Automation</h1>
+          <button
+            className="icon-btn"
+            title="New rule"
+            onClick={() => setView({ kind: "new" })}
+          >
+            +
+          </button>
+        </header>
 
-      <section className="panel">
-        <div className="panel-header">
-          <h2>Rules</h2>
-          <button onClick={() => setShowForm(true)}>+ Add rule</button>
-        </div>
+        <nav className="sidebar-rules">
+          {rules.map((rule, i) => (
+            <div
+              key={i}
+              className={
+                "sidebar-rule" +
+                (view.kind === "rule" && view.index === i ? " active" : "")
+              }
+              onClick={() => setView({ kind: "rule", index: i })}
+            >
+              <span className="sidebar-rule-name">{rule.name}</span>
+              <button
+                className="trash-btn"
+                title="Delete rule"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeRule(i);
+                }}
+              >
+                🗑
+              </button>
+            </div>
+          ))}
+        </nav>
 
-        {showForm && <RuleForm onSubmit={addRule} onCancel={() => setShowForm(false)} />}
+        <div className="sidebar-spacer" />
 
-        {rules.length === 0 ? (
-          <p className="empty">
-            No rules defined yet. Add your first rule with the button above.
-          </p>
-        ) : (
-          <ul className="rule-list">
-            {rules.map((rule, i) => (
-              <li key={i} className="rule-card">
-                <div className="rule-name">
-                  <strong>{rule.name}</strong>
-                  <button onClick={() => removeRule(i)}>Remove</button>
-                </div>
-                <div className="rule-body">
-                  <div className="rule-row">
-                    <span className="rule-label">Watch</span>
-                    <ul className="rule-folders">
-                      {rule.watched_folders.map((f) => (
-                        <li key={f}>{f}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="rule-row">
-                    <span className="rule-label">Match</span>
-                    <span>{describeCriteria(rule.match_criteria)}</span>
-                  </div>
-                  <div className="rule-row">
-                    <span className="rule-label">Action</span>
-                    <span>{describeAction(rule.action)}</span>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        <button
+          className={"sidebar-tab" + (view.kind === "activity" ? " active" : "")}
+          onClick={() => setView({ kind: "activity" })}
+        >
+          Activity
+        </button>
+      </aside>
 
-      <section className="panel">
-        <h2>Activity</h2>
-        <ul className="activity-list">
-          {activity
-            .slice()
-            .reverse()
-            .map((entry) => (
-              <li key={entry.id} className={entry.level}>
-                {entry.message}
-              </li>
-            ))}
-        </ul>
-      </section>
+      <section className="main">{renderMain()}</section>
     </main>
   );
 }
