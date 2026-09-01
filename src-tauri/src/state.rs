@@ -5,12 +5,14 @@ use tauri::Manager;
 use crate::actions;
 use crate::config::{self, AppConfig};
 use crate::logging::ActivityLog;
+use crate::presets::{self, PresetStore};
 use crate::rules::{Rule, RuleAction};
 use crate::watcher::FileWatcher;
 
 pub struct AppState {
     pub watcher: Mutex<FileWatcher>,
     pub config: Mutex<AppConfig>,
+    pub presets: Mutex<PresetStore>,
     pub log: ActivityLog,
 }
 
@@ -20,6 +22,7 @@ impl AppState {
         Self {
             watcher: Mutex::new(FileWatcher::new()),
             config: Mutex::new(config::load().unwrap_or_default()),
+            presets: Mutex::new(presets::load().unwrap_or_default()),
             log: ActivityLog::new(config_dir),
         }
     }
@@ -69,9 +72,10 @@ impl AppState {
     /// Skips files that no longer exist (already handled by a prior event).
     pub fn process(app: tauri::AppHandle, path: std::path::PathBuf) {
         let state = app.state::<AppState>();
-        let rules: Vec<Rule> = {
+        let (rules, presets) = {
             let cfg = state.config.lock().unwrap();
-            cfg.rules.clone()
+            let presets = state.presets.lock().unwrap();
+            (cfg.rules.clone(), presets.presets.clone())
         };
 
         if !path.is_file() {
@@ -82,7 +86,10 @@ impl AppState {
             if !rule.applies_to(&path) {
                 continue;
             }
-            if rule.matches(&path) {
+            if !rule.is_runnable(&presets) {
+                continue;
+            }
+            if rule.matches(&path, &presets) {
                 match actions::execute(&path, &rule.action) {
                     Ok(dest) => {
                         let verb = action_verb(&rule.action);

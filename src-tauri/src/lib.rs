@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod config;
 pub mod logging;
+pub mod presets;
 pub mod rules;
 pub mod state;
 pub mod watcher;
@@ -8,6 +9,7 @@ pub mod watcher;
 use tauri::{Manager, State};
 
 use crate::config::AppConfig;
+use crate::presets::Preset;
 use crate::rules::Rule;
 use crate::state::AppState;
 
@@ -45,6 +47,62 @@ fn get_rules(state: State<'_, AppState>) -> Vec<Rule> {
     state.config.lock().unwrap().rules.clone()
 }
 
+fn get_preset_list(state: State<'_, AppState>) -> Vec<Preset> {
+    state.presets.lock().unwrap().presets.clone()
+}
+
+#[tauri::command]
+fn get_presets(state: State<'_, AppState>) -> Vec<Preset> {
+    get_preset_list(state)
+}
+
+#[tauri::command]
+fn add_preset(preset: Preset, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.presets.lock().unwrap();
+        if store.presets.iter().any(|p| p.name == preset.name) {
+            return Err(presets::PresetError::Duplicate.to_string());
+        }
+        store.presets.push(preset);
+        presets::save(&store).map_err(|e| e.to_string())?;
+    }
+    Ok(get_preset_list(app.state::<AppState>()))
+}
+
+#[tauri::command]
+fn update_preset(preset: Preset, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.presets.lock().unwrap();
+        match store
+            .presets
+            .iter_mut()
+            .find(|p| p.name == preset.name)
+        {
+            Some(existing) => *existing = preset,
+            None => return Err(presets::PresetError::NotFound.to_string()),
+        }
+        presets::save(&store).map_err(|e| e.to_string())?;
+    }
+    Ok(get_preset_list(app.state::<AppState>()))
+}
+
+#[tauri::command]
+fn delete_preset(name: String, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.presets.lock().unwrap();
+        let before = store.presets.len();
+        store.presets.retain(|p| p.name != name);
+        if store.presets.len() == before {
+            return Err(presets::PresetError::NotFound.to_string());
+        }
+        presets::save(&store).map_err(|e| e.to_string())?;
+    }
+    Ok(get_preset_list(app.state::<AppState>()))
+}
+
 #[tauri::command]
 fn get_logs(state: State<'_, AppState>, count: Option<usize>) -> Vec<String> {
     state.log.read_tail(count.unwrap_or(200))
@@ -71,7 +129,11 @@ pub fn run() {
             add_rule,
             remove_rule,
             get_logs,
-            get_log_path
+            get_log_path,
+            get_presets,
+            add_preset,
+            update_preset,
+            delete_preset
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

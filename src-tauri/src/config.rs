@@ -72,6 +72,7 @@ mod tests {
             rules: vec![Rule {
                 name: "PDFs".into(),
                 watched_folders: vec!["C:/Downloads".into()],
+                kind: vec![],
                 match_criteria: Default::default(),
                 action: crate::rules::RuleAction::Move {
                     destination: "C:/Documents".into(),
