@@ -1,9 +1,39 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
-import "./App.css";
+import {
+  Activity,
+  Check,
+  Folder,
+  Minus,
+  Pencil,
+  Plus,
+  Settings,
+  Square,
+  Trash2,
+  TriangleAlert,
+  X,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 type RuleAction =
   | { type: "move"; destination: string }
@@ -116,9 +146,9 @@ function isRunnable(rule: Rule, presets: Preset[]): boolean {
 
 type SelectOption = { value: string; label: string };
 
-/** Combobox multi-select: selected values render as removable chips with an
- * inline text input that filters the dropdown and can add custom values
- * (`allowCustom`). Mirrors the shadcn/ui "multiple" combobox pattern. */
+/** shadcn/ui combobox pattern (Popover + Command) for multi-select. Selected
+ * values render as removable chips; the popover filters and can add custom
+ * values (`allowCustom`). */
 function Combobox({
   options,
   selected,
@@ -134,17 +164,6 @@ function Combobox({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onDown(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, []);
 
   const q = query.trim().toLowerCase();
   const merged: SelectOption[] = options.slice();
@@ -171,89 +190,98 @@ function Combobox({
       onChange([...selected, normalized]);
     }
     setQuery("");
+    setOpen(true);
   }
 
   const labelFor = (v: string) =>
     merged.find((o) => o.value === v)?.label ?? v;
 
   return (
-    <div className="combobox" ref={rootRef}>
-      <div className="combobox-control" onClick={() => setOpen(true)}>
-        {selected.map((v) => (
-          <span key={v} className="combobox-chip">
-            {labelFor(v)}
-            <button
-              type="button"
-              className="combobox-chip-x"
-              title="Remove"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggle(v);
-              }}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          className="flex min-h-9 w-full cursor-text flex-wrap items-center gap-1.5 border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          {selected.length === 0 && (
+            <span className="pl-1 text-muted-foreground">{placeholder}</span>
+          )}
+          {selected.map((v) => (
+            <span
+              key={v}
+              className="flex items-center gap-1 border border-border bg-muted px-1.5 py-0.5 text-xs"
             >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          className="combobox-input"
-          value={query}
-          placeholder={selected.length === 0 ? placeholder : ""}
-          onChange={(e) => {
-            setQuery(e.currentTarget.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && canAddCustom) {
-              e.preventDefault();
-              addValue(query);
-            } else if (e.key === "Escape") {
-              setOpen(false);
-            }
-          }}
-        />
-      </div>
-
-      {open && (
-        <div className="combobox-popover">
-          <div className="combobox-items">
-            {filtered.length === 0 && !canAddCustom && (
-              <div className="combobox-empty">No items found.</div>
-            )}
-            {filtered.map((o) => (
-              <div
-                key={o.value}
-                className={
-                  "combobox-item" +
-                  (selected.includes(o.value) ? " selected" : "")
-                }
-                onClick={() => toggle(o.value)}
+              {labelFor(v)}
+              <span
+                role="button"
+                tabIndex={-1}
+                aria-label={`Remove ${labelFor(v)}`}
+                className="flex cursor-pointer text-muted-foreground hover:text-foreground"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  toggle(v);
+                }}
               >
-                <span className="combobox-check">
-                  {selected.includes(o.value) ? "✓" : ""}
-                </span>
+                <X className="size-3" />
+              </span>
+            </span>
+          ))}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            value={query}
+            onValueChange={setQuery}
+            placeholder="Search…"
+          />
+          <CommandList>
+            <CommandEmpty>No items found.</CommandEmpty>
+            {filtered.map((o) => (
+              <CommandItem
+                key={o.value}
+                value={o.value}
+                onSelect={() => {
+                  toggle(o.value);
+                  setQuery("");
+                }}
+              >
+                <Check
+                  className={cn(
+                    "size-4",
+                    selected.includes(o.value) ? "" : "opacity-0",
+                  )}
+                />
                 {o.label}
-              </div>
+              </CommandItem>
             ))}
             {canAddCustom && (
-              <div className="combobox-item add" onClick={() => addValue(query)}>
-                + Add "{query.trim()}"
-              </div>
+              <CommandItem
+                value={query}
+                onSelect={() => addValue(query)}
+              >
+                <Plus className="size-4" />
+                Add "{query.trim()}"
+              </CommandItem>
             )}
-          </div>
+          </CommandList>
           {selected.length > 0 && (
-            <button
-              type="button"
-              className="combobox-clear"
-              onClick={() => onChange([])}
-            >
-              Clear all
-            </button>
+            <div className="border-t border-border">
+              <button
+                type="button"
+                className="w-full px-3 py-2 text-left text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                onClick={() => onChange([])}
+              >
+                Clear all
+              </button>
+            </div>
           )}
-        </div>
-      )}
-    </div>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -290,7 +318,7 @@ function RuleForm({
     if (folder) set("destination", folder);
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const criteria: MatchCriteria = {
       extension: form.extension.map((x) => x.trim().toLowerCase()).filter(Boolean),
@@ -323,143 +351,198 @@ function RuleForm({
   }));
 
   return (
-    <form className="rule-form" onSubmit={handleSubmit}>
-      <label>
-        Rule name *
-        <input
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <div className="space-y-1.5">
+        <Label htmlFor="rule-name">Rule name *</Label>
+        <Input
+          id="rule-name"
           value={form.name}
           onChange={(e) => set("name", e.currentTarget.value)}
           placeholder="Sort PDFs"
           required
         />
-      </label>
+      </div>
 
-      <fieldset>
-        <legend>Watch these folders</legend>
-        <p className="hint">Files added to any of these folders will be checked against this rule.</p>
+      <fieldset className="border border-border p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Watch
+        </legend>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Files added to any of these folders will be checked against this rule.
+        </p>
         {form.watched_folders.length === 0 ? (
-          <p className="empty">No folders selected yet.</p>
+          <p className="py-1 text-sm text-muted-foreground">
+            No folders selected yet.
+          </p>
         ) : (
-          <ul className="folder-list">
+          <ul className="divide-y divide-border border border-border">
             {form.watched_folders.map((folder) => (
-              <li key={folder}>
-                <span>{folder}</span>
-                <button type="button" onClick={() => removeWatchedFolder(folder)}>
-                  Remove
-                </button>
+              <li
+                key={folder}
+                className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+              >
+                <span className="select-text truncate font-mono text-xs">
+                  {folder}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0"
+                  title={`Remove ${folder}`}
+                  onClick={() => removeWatchedFolder(folder)}
+                >
+                  <X className="size-3.5" />
+                </Button>
               </li>
             ))}
           </ul>
         )}
-        <button type="button" onClick={addWatchedFolder} className="secondary">
-          + Add folder
-        </button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          onClick={addWatchedFolder}
+        >
+          <Folder className="size-3.5" /> Add folder
+        </Button>
       </fieldset>
 
-      <fieldset>
-        <legend>Match</legend>
-        <label>
-          Kind
-          <Combobox
-            options={kindOptions}
-            selected={form.kind}
-            onChange={(values) => set("kind", values)}
-            allowCustom={false}
-            placeholder="Select kinds…"
-          />
-        </label>
-        <label>
-          Extension
-          <Combobox
-            options={extOptions}
-            selected={form.extension}
-            onChange={(values) => set("extension", values)}
-            allowCustom
-            placeholder="Type or select extensions…"
-          />
-        </label>
-        <p className="hint">
-          Kinds group extensions (managed in Settings); extensions above are
-          matched in addition to any selected kinds.
-        </p>
-        <label>
-          Name pattern
-          <input
-            value={form.name_pattern}
-            onChange={(e) => set("name_pattern", e.currentTarget.value)}
-            placeholder="*invoice*"
-          />
-        </label>
-        <div className="row-grid">
-          <label>
-            Modified after (YYYY-MM-DD)
-            <input
-              type="date"
-              value={form.date_after}
-              onChange={(e) => set("date_after", e.currentTarget.value)}
+      <fieldset className="border border-border p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Match
+        </legend>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Kind</Label>
+            <Combobox
+              options={kindOptions}
+              selected={form.kind}
+              onChange={(values) => set("kind", values)}
+              allowCustom={false}
+              placeholder="Select kinds…"
             />
-          </label>
-          <label>
-            Modified before (YYYY-MM-DD)
-            <input
-              type="date"
-              value={form.date_before}
-              onChange={(e) => set("date_before", e.currentTarget.value)}
+          </div>
+          <div className="space-y-1.5">
+            <Label>Extension</Label>
+            <Combobox
+              options={extOptions}
+              selected={form.extension}
+              onChange={(values) => set("extension", values)}
+              allowCustom
+              placeholder="Type or select extensions…"
             />
-          </label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Action</legend>
-        <div className="action-type">
-          {(["move", "copy", "rename"] as ActionType[]).map((t) => (
-            <label key={t}>
-              <input
-                type="radio"
-                name="action_type"
-                value={t}
-                checked={form.action_type === t}
-                onChange={() => set("action_type", t)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Kinds group extensions (managed in Settings); extensions above are
+            matched in addition to any selected kinds.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="name-pattern">Name pattern</Label>
+            <Input
+              id="name-pattern"
+              value={form.name_pattern}
+              onChange={(e) => set("name_pattern", e.currentTarget.value)}
+              placeholder="*invoice*"
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="date-after">Modified after</Label>
+              <Input
+                id="date-after"
+                type="date"
+                value={form.date_after}
+                onChange={(e) => set("date_after", e.currentTarget.value)}
               />
-              {t}
-            </label>
-          ))}
-        </div>
-
-        {form.action_type === "rename" ? (
-          <label>
-            Rename pattern (use {"{name}"} for filename)
-            <input
-              value={form.pattern}
-              onChange={(e) => set("pattern", e.currentTarget.value)}
-              placeholder="report_{name}"
-              required
-            />
-          </label>
-        ) : (
-          <div>
-            <span className="field-label">Destination folder *</span>
-            <div className="picker-row">
-              <input
-                value={form.destination}
-                onChange={(e) => set("destination", e.currentTarget.value)}
-                placeholder="D:\Temp"
-                required
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="date-before">Modified before</Label>
+              <Input
+                id="date-before"
+                type="date"
+                value={form.date_before}
+                onChange={(e) => set("date_before", e.currentTarget.value)}
               />
-              <button type="button" onClick={chooseDestination}>
-                Browse…
-              </button>
             </div>
           </div>
-        )}
+        </div>
       </fieldset>
 
-      <div className="form-actions">
-        <button type="button" onClick={onCancel}>
+      <fieldset className="border border-border p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Action
+        </legend>
+        <div className="space-y-3">
+          <div role="radiogroup" className="flex border border-border">
+            {(["move", "copy", "rename"] as ActionType[]).map((t) => (
+              <label
+                key={t}
+                className={cn(
+                  "flex-1 cursor-pointer px-3 py-2 text-center text-sm capitalize transition-colors",
+                  form.action_type === t
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent/50",
+                  t !== "move" && "border-l border-border",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="action_type"
+                  value={t}
+                  checked={form.action_type === t}
+                  onChange={() => set("action_type", t)}
+                  className="sr-only"
+                />
+                {t}
+              </label>
+            ))}
+          </div>
+
+          {form.action_type === "rename" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="rename-pattern">
+                Rename pattern (use {"{name}"} for filename)
+              </Label>
+              <Input
+                id="rename-pattern"
+                value={form.pattern}
+                onChange={(e) => set("pattern", e.currentTarget.value)}
+                placeholder="report_{name}"
+                required
+              />
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="destination">Destination folder *</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="destination"
+                  value={form.destination}
+                  onChange={(e) => set("destination", e.currentTarget.value)}
+                  placeholder="D:\Temp"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={chooseDestination}
+                >
+                  <Folder className="size-3.5" /> Browse…
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </fieldset>
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
-        </button>
-        <button type="submit">Add rule</button>
+        </Button>
+        <Button type="submit">Add rule</Button>
       </div>
     </form>
   );
@@ -496,57 +579,71 @@ function TitleBar() {
   const appWindow = getCurrentWindow();
 
   return (
-    <header className="titlebar" data-tauri-drag-region>
-      <span className="titlebar-title" data-tauri-drag-region>
+    <header
+      className="flex h-9 shrink-0 items-center justify-between border-b border-border bg-card"
+      data-tauri-drag-region
+    >
+      <span
+        className="pl-3 text-xs font-semibold text-muted-foreground"
+        data-tauri-drag-region
+      >
         File Automation
       </span>
-      <div className="titlebar-controls">
+      <div className="flex h-full items-stretch">
         <button
           type="button"
-          className="titlebar-btn"
           title="Minimize"
           onClick={() => appWindow.minimize()}
+          className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10" focusable="false" aria-hidden="true">
-            <rect x="0" y="4.4" width="10" height="1.2" rx="0.6" fill="currentColor" />
-          </svg>
+          <Minus className="size-3.5" />
         </button>
         <button
           type="button"
-          className="titlebar-btn"
           title="Maximize"
           onClick={() => appWindow.toggleMaximize()}
+          className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10" focusable="false" aria-hidden="true">
-            <rect
-              x="0.8"
-              y="0.8"
-              width="8.4"
-              height="8.4"
-              rx="0.5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.2"
-            />
-          </svg>
+          <Square className="size-3" />
         </button>
         <button
           type="button"
-          className="titlebar-btn close"
           title="Close"
           onClick={() => appWindow.close()}
+          className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10" focusable="false" aria-hidden="true">
-            <path
-              d="M1.5 1.5l7 7M8.5 1.5l-7 7"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-            />
-          </svg>
+          <X className="size-3.5" />
         </button>
       </div>
     </header>
+  );
+}
+
+function SidebarTab({
+  label,
+  icon,
+  active,
+  onClick,
+}: {
+  label: string;
+  icon: ReactNode;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex h-9 w-full cursor-pointer items-center gap-2.5 px-3 text-sm font-medium transition-colors",
+        active
+          ? "bg-accent text-accent-foreground"
+          : "text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
@@ -572,7 +669,7 @@ function PresetForm({
 
   return (
     <form
-      className="rule-form"
+      className="mb-4 space-y-3 border border-border bg-muted/30 p-4"
       onSubmit={(e) => {
         e.preventDefault();
         onSave({
@@ -582,27 +679,29 @@ function PresetForm({
         });
       }}
     >
-      <label>
-        Name (id, kebab-case) *
-        <input
+      <div className="space-y-1.5">
+        <Label htmlFor="preset-name">Name (id, kebab-case) *</Label>
+        <Input
+          id="preset-name"
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
           placeholder="movie"
           disabled={!!initial}
           required
         />
-      </label>
-      <label>
-        Title *
-        <input
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="preset-title">Title *</Label>
+        <Input
+          id="preset-title"
           value={title}
           onChange={(e) => setTitle(e.currentTarget.value)}
           placeholder="Movie"
           required
         />
-      </label>
-      <label>
-        Extensions
+      </div>
+      <div className="space-y-1.5">
+        <Label>Extensions</Label>
         <Combobox
           options={extOptions}
           selected={extensions}
@@ -610,12 +709,12 @@ function PresetForm({
           allowCustom
           placeholder="Type or select extensions…"
         />
-      </label>
-      <div className="form-actions">
-        <button type="button" onClick={onCancel}>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
-        </button>
-        <button type="submit">{initial ? "Save" : "Add preset"}</button>
+        </Button>
+        <Button type="submit">{initial ? "Save" : "Add preset"}</Button>
       </div>
     </form>
   );
@@ -635,12 +734,14 @@ function SettingsTab({
   const [editing, setEditing] = useState<Preset | "new" | null>(null);
 
   return (
-    <section className="panel">
-      <div className="panel-header-inline">
-        <h2>Kind presets</h2>
-        <button onClick={() => setEditing("new")}>+ Add preset</button>
+    <section className="px-6 py-5">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-base font-semibold">Kind presets</h2>
+        <Button size="sm" variant="outline" onClick={() => setEditing("new")}>
+          <Plus className="size-3.5" /> Add preset
+        </Button>
       </div>
-      <p className="hint">
+      <p className="mb-4 text-xs text-muted-foreground">
         Kind presets group extensions under a reusable kind. Rules reference
         kinds by id, so renaming a title updates every rule automatically.
       </p>
@@ -659,28 +760,37 @@ function SettingsTab({
       )}
 
       {presets.length === 0 ? (
-        <p className="empty">No kind presets yet.</p>
+        <p className="text-sm text-muted-foreground">No kind presets yet.</p>
       ) : (
-        <ul className="preset-list">
+        <ul className="space-y-2">
           {presets.map((p) => (
-            <li key={p.name} className="preset-card">
-              <div className="preset-title">
-                <strong>{p.title}</strong>
-                <span className="preset-name">{p.name}</span>
-                <div className="preset-actions">
-                  <button
+            <li key={p.name} className="border border-border px-4 py-3">
+              <div className="flex items-center gap-2">
+                <strong className="text-sm font-medium">{p.title}</strong>
+                <span className="text-xs text-muted-foreground">{p.name}</span>
+                <div className="ml-auto flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    title="Edit"
                     onClick={() => setEditing(p)}
                   >
-                    Edit
-                  </button>
-                  <button
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    title="Delete"
                     onClick={() => onDelete(p.name)}
                   >
-                    Delete
-                  </button>
+                    <Trash2 className="size-3.5" />
+                  </Button>
                 </div>
               </div>
-              <p className="preset-extensions">{p.extensions.join(", ")}</p>
+              <p className="mt-1 select-text text-xs text-muted-foreground">
+                {p.extensions.join(", ") || "no extensions"}
+              </p>
             </li>
           ))}
         </ul>
@@ -751,60 +861,67 @@ function App() {
     const missing = missingKinds(rule, presets);
     const runnable = isRunnable(rule, presets);
     return (
-      <section className="panel">
+      <section className="px-6 py-5">
         {missing.length > 0 && (
-          <div className="banner error">
-            Missing kind preset{missing.length > 1 ? "s" : ""}:{" "}
-            {missing.map((m) => presetByTitle(presets, m)).join(", ")}. This kind
-            preset does not exist.
+          <div className="mb-4 flex items-start gap-2 border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Missing kind preset{missing.length > 1 ? "s" : ""}:{" "}
+              {missing.map((m) => presetByTitle(presets, m)).join(", ")}. This
+              kind preset does not exist.
+            </span>
           </div>
         )}
         {!runnable && (
-          <div className="banner error">
-            This rule has no valid criteria (missing kind preset) and will never
-            run.
-          </div>
-        )}
-        <h2>{rule.name}</h2>
-        <div className="rule-body">
-          <div className="rule-row">
-            <span className="rule-label">Watch</span>
-            <ul className="rule-folders">
-              {rule.watched_folders.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="rule-row">
-            <span className="rule-label">Kind</span>
+          <div className="mb-4 flex items-start gap-2 border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <span>
-              {rule.kind.length === 0 && <span>none</span>}
-              {rule.kind.map((k) =>
-                presets.some((p) => p.name === k) ? (
-                  <span key={k} className="kind-chip">
-                    {presetByTitle(presets, k)}
-                  </span>
-                ) : (
-                  <span
-                    key={k}
-                    className="kind-chip missing"
-                    title="This kind preset does not exist"
-                  >
-                    {k}
-                  </span>
-                ),
-              )}
+              This rule has no valid criteria (missing kind preset) and will
+              never run.
             </span>
           </div>
-          <div className="rule-row">
-            <span className="rule-label">Match</span>
-            <span>{describeCriteria(rule.match_criteria, rule.kind.map((k) => presetByTitle(presets, k)))}</span>
-          </div>
-          <div className="rule-row">
-            <span className="rule-label">Action</span>
-            <span>{describeAction(rule.action)}</span>
-          </div>
-        </div>
+        )}
+        <h2 className="mb-4 text-base font-semibold">{rule.name}</h2>
+        <dl className="grid grid-cols-[92px_1fr] gap-x-4 gap-y-2 text-sm">
+          <dt className="text-muted-foreground">Watch</dt>
+          <dd>
+            <ul className="space-y-0.5">
+              {rule.watched_folders.map((f) => (
+                <li key={f} className="select-text font-mono text-xs">
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </dd>
+          <dt className="text-muted-foreground">Kind</dt>
+          <dd className="flex flex-wrap items-center gap-1.5">
+            {rule.kind.length === 0 && (
+              <span className="text-muted-foreground">none</span>
+            )}
+            {rule.kind.map((k) =>
+              presets.some((p) => p.name === k) ? (
+                <Badge key={k}>{presetByTitle(presets, k)}</Badge>
+              ) : (
+                <Badge
+                  key={k}
+                  variant="destructive"
+                  title="This kind preset does not exist"
+                >
+                  {k}
+                </Badge>
+              ),
+            )}
+          </dd>
+          <dt className="text-muted-foreground">Match</dt>
+          <dd>
+            {describeCriteria(
+              rule.match_criteria,
+              rule.kind.map((k) => presetByTitle(presets, k)),
+            )}
+          </dd>
+          <dt className="text-muted-foreground">Action</dt>
+          <dd>{describeAction(rule.action)}</dd>
+        </dl>
       </section>
     );
   }
@@ -812,13 +929,15 @@ function App() {
   function renderMain() {
     if (view.kind === "new") {
       return (
-        <section className="panel">
-          <h2>New rule</h2>
+        <section className="px-6 py-5">
+          <h2 className="mb-4 text-base font-semibold">New rule</h2>
           <RuleForm
             presets={presets}
             onSubmit={addRule}
             onCancel={() =>
-              setView(rules.length ? { kind: "rule", index: 0 } : { kind: "activity" })
+              setView(
+                rules.length ? { kind: "rule", index: 0 } : { kind: "activity" },
+              )
             }
           />
         </section>
@@ -827,18 +946,28 @@ function App() {
 
     if (view.kind === "activity") {
       return (
-        <section className="panel">
-          <h2>Activity</h2>
-          <ul className="activity-list">
-            {activity
-              .slice()
-              .reverse()
-              .map((entry) => (
-                <li key={entry.id} className={entry.level}>
-                  {entry.message}
-                </li>
-              ))}
-          </ul>
+        <section className="px-6 py-5">
+          <h2 className="mb-4 text-base font-semibold">Activity</h2>
+          {activity.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No activity yet.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {activity
+                .slice()
+                .reverse()
+                .map((entry) => (
+                  <li
+                    key={entry.id}
+                    className={cn(
+                      "select-text py-1.5 font-mono text-xs",
+                      entry.level === "error" && "text-destructive",
+                    )}
+                  >
+                    {entry.message}
+                  </li>
+                ))}
+            </ul>
+          )}
         </section>
       );
     }
@@ -857,8 +986,8 @@ function App() {
     const rule = rules[view.index];
     if (!rule) {
       return (
-        <section className="panel">
-          <p className="empty">No rule selected.</p>
+        <section className="px-6 py-5">
+          <p className="text-sm text-muted-foreground">No rule selected.</p>
         </section>
       );
     }
@@ -867,64 +996,82 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="flex h-screen select-none flex-col">
       <TitleBar />
-      <main className="app">
-      <aside className="sidebar">
-        <header className="sidebar-header">
-          <h1>File Automation</h1>
-          <button
-            className="icon-btn"
-            title="New rule"
-            onClick={() => setView({ kind: "new" })}
-          >
-            +
-          </button>
-        </header>
-
-        <nav className="sidebar-rules">
-          {rules.map((rule, i) => (
-            <div
-              key={i}
-              className={
-                "sidebar-rule" +
-                (view.kind === "rule" && view.index === i ? " active" : "")
-              }
-              onClick={() => setView({ kind: "rule", index: i })}
+      <div className="flex min-h-0 flex-1">
+        <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card">
+          <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
+            <h1 className="px-1 text-sm font-semibold">Rules</h1>
+            <Button
+              size="icon"
+              variant="ghost"
+              title="New rule"
+              onClick={() => setView({ kind: "new" })}
             >
-              <span className="sidebar-rule-name">{rule.name}</span>
-              <button
-                className="trash-btn"
-                title="Delete rule"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeRule(i);
+              <Plus className="size-4" />
+            </Button>
+          </header>
+
+          <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-2">
+            {rules.map((rule, i) => (
+              <div
+                key={i}
+                role="button"
+                tabIndex={0}
+                onClick={() => setView({ kind: "rule", index: i })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    setView({ kind: "rule", index: i });
+                  }
                 }}
+                className={cn(
+                  "group flex w-full cursor-pointer items-center justify-between gap-2 px-2 py-1.5 text-sm transition-colors",
+                  view.kind === "rule" && view.index === i
+                    ? "bg-accent text-accent-foreground"
+                    : "text-foreground hover:bg-accent/60",
+                )}
               >
-                🗑
-              </button>
-            </div>
-          ))}
-        </nav>
+                <span className="truncate">{rule.name}</span>
+                <button
+                  type="button"
+                  title="Delete rule"
+                  className="flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeRule(i);
+                  }}
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+            ))}
+            {rules.length === 0 && (
+              <p className="px-2 py-1 text-xs text-muted-foreground">
+                No rules yet.
+              </p>
+            )}
+          </nav>
 
-        <div className="sidebar-spacer" />
+          <div className="shrink-0 border-t border-border p-2">
+            <SidebarTab
+              label="Activity"
+              icon={<Activity className="size-4" />}
+              active={view.kind === "activity"}
+              onClick={() => setView({ kind: "activity" })}
+            />
+            <SidebarTab
+              label="Settings"
+              icon={<Settings className="size-4" />}
+              active={view.kind === "settings"}
+              onClick={() => setView({ kind: "settings" })}
+            />
+          </div>
+        </aside>
 
-        <button
-          className={"sidebar-tab" + (view.kind === "activity" ? " active" : "")}
-          onClick={() => setView({ kind: "activity" })}
-        >
-          Activity
-        </button>
-        <button
-          className={"sidebar-tab" + (view.kind === "settings" ? " active" : "")}
-          onClick={() => setView({ kind: "settings" })}
-        >
-          Settings
-        </button>
-      </aside>
-
-      <section className="main">{renderMain()}</section>
-      </main>
+        <section className="min-w-0 flex-1 divide-y divide-border overflow-y-auto">
+          {renderMain()}
+        </section>
+      </div>
     </div>
   );
 }
