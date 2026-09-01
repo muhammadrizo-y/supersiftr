@@ -238,6 +238,26 @@ function RuleForm({ onSubmit, onCancel }: { onSubmit: (rule: Rule) => void; onCa
   );
 }
 
+function describeCriteria(criteria: MatchCriteria): string {
+  const parts: string[] = [];
+  if (criteria.extension) parts.push(`extension "${criteria.extension}"`);
+  if (criteria.name_pattern) parts.push(`name matches "${criteria.name_pattern}"`);
+  if (criteria.date_after) parts.push(`modified after ${criteria.date_after}`);
+  if (criteria.date_before) parts.push(`modified before ${criteria.date_before}`);
+  return parts.length ? parts.join(", ") : "any file";
+}
+
+function describeAction(action: RuleAction): string {
+  switch (action.type) {
+    case "move":
+      return `Move to ${action.destination}`;
+    case "copy":
+      return `Copy to ${action.destination}`;
+    case "rename":
+      return `Rename to ${action.pattern}`;
+  }
+}
+
 function App() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -278,7 +298,6 @@ function App() {
     <main className="app">
       <header className="app-header">
         <h1>File Automation</h1>
-        <button onClick={() => setShowForm(true)}>+ Add rule</button>
       </header>
 
       <section className="panel">
@@ -296,12 +315,29 @@ function App() {
         ) : (
           <ul className="rule-list">
             {rules.map((rule, i) => (
-              <li key={i}>
+              <li key={i} className="rule-card">
                 <div className="rule-name">
                   <strong>{rule.name}</strong>
                   <button onClick={() => removeRule(i)}>Remove</button>
                 </div>
-                <pre>{JSON.stringify(rule, null, 2)}</pre>
+                <div className="rule-body">
+                  <div className="rule-row">
+                    <span className="rule-label">Watch</span>
+                    <ul className="rule-folders">
+                      {rule.watched_folders.map((f) => (
+                        <li key={f}>{f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rule-row">
+                    <span className="rule-label">Match</span>
+                    <span>{describeCriteria(rule.match_criteria)}</span>
+                  </div>
+                  <div className="rule-row">
+                    <span className="rule-label">Action</span>
+                    <span>{describeAction(rule.action)}</span>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>

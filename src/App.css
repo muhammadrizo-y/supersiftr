@@ -209,19 +209,45 @@ button:active {
   border-bottom: none;
 }
 
+.rule-card {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
 .rule-name {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-.rule-list pre {
-  background: #f6f6f6;
-  padding: 10px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  overflow-x: auto;
-  margin: 8px 0 0;
+.rule-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.rule-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.rule-label {
+  flex: 0 0 52px;
+  font-weight: 600;
+  color: #555;
+}
+
+.rule-folders {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .activity-list {
