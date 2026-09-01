@@ -11,7 +11,7 @@ use crate::presets::Preset;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MatchCriteria {
     #[serde(default)]
-    pub extension: Option<String>,
+    pub extension: Vec<String>,
     #[serde(default)]
     pub name_pattern: Option<String>,
     #[serde(default)]
@@ -97,7 +97,7 @@ impl Rule {
                 }
             }
         }
-        if let Some(ext) = &self.match_criteria.extension {
+        for ext in &self.match_criteria.extension {
             set.insert(ext.to_lowercase());
         }
         let mut list: Vec<String> = set.into_iter().collect();
@@ -169,7 +169,7 @@ mod tests {
             watched_folders: vec!["C:/Downloads".into()],
             kind: vec![],
             match_criteria: MatchCriteria {
-                extension: Some("pdf".into()),
+                extension: vec!["pdf".into()],
                 name_pattern: None,
                 date_after: None,
                 date_before: None,
@@ -189,7 +189,7 @@ mod tests {
             watched_folders: vec!["C:/Downloads".into()],
             kind: vec![],
             match_criteria: MatchCriteria {
-                extension: None,
+                extension: vec![],
                 name_pattern: Some("*invoice*".into()),
                 date_after: None,
                 date_before: None,
@@ -231,7 +231,7 @@ mod tests {
             watched_folders: vec!["C:/Downloads".into()],
             kind: vec!["does-not-exist".into()],
             match_criteria: MatchCriteria {
-                extension: None,
+                extension: vec![],
                 name_pattern: Some("*invoice*".into()),
                 date_after: None,
                 date_before: None,
@@ -276,7 +276,7 @@ mod tests {
             watched_folders: vec!["C:/Downloads".into()],
             kind: vec!["movie".into()],
             match_criteria: MatchCriteria {
-                extension: Some("avi".into()),
+                extension: vec!["avi".into()],
                 name_pattern: None,
                 date_after: None,
                 date_before: None,
@@ -310,11 +310,12 @@ mod tests {
     fn deserializes_lowercase_action_tags() {
         let json = r#"{
             "name": "Sort PDFs",
-            "match_criteria": { "extension": "pdf" },
+            "match_criteria": { "extension": ["pdf"] },
             "action": { "type": "move", "destination": "D:\\Temp" }
         }"#;
         let rule: Rule = serde_json::from_str(json).unwrap();
         assert!(rule.kind.is_empty());
+        assert_eq!(rule.match_criteria.extension, vec!["pdf"]);
         match rule.action {
             RuleAction::Move { destination } => assert_eq!(destination, "D:\\Temp"),
             _ => panic!("expected Move action"),
@@ -330,7 +331,7 @@ mod tests {
             "watched_folders": ["C:\\Downloads"],
             "kind": [],
             "match_criteria": {
-                "extension": null,
+                "extension": [],
                 "name_pattern": null,
                 "date_after": null,
                 "date_before": null
@@ -341,7 +342,7 @@ mod tests {
         assert_eq!(rule.name, "Images");
         assert_eq!(rule.watched_folders, vec!["C:\\Downloads"]);
         assert!(rule.kind.is_empty());
-        assert_eq!(rule.match_criteria.extension, None);
+        assert!(rule.match_criteria.extension.is_empty());
         match rule.action {
             RuleAction::Copy { destination } => assert_eq!(destination, "D:\\Pictures"),
             _ => panic!("expected Copy action"),
