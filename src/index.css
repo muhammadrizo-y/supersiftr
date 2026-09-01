@@ -95,6 +95,10 @@
     -webkit-user-select: none;
   }
 
+  #root {
+    height: 100%;
+  }
+
   input,
   textarea,
   code {
