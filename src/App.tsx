@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -115,41 +115,144 @@ function isRunnable(rule: Rule, presets: Preset[]): boolean {
 
 type SelectOption = { value: string; label: string };
 
-function MultiSelect({
+/** Combobox multi-select: selected values render as removable chips with an
+ * inline text input that filters the dropdown and can add custom values
+ * (`allowCustom`). Mirrors the shadcn/ui "multiple" combobox pattern. */
+function Combobox({
   options,
   selected,
   onChange,
   placeholder,
+  allowCustom = true,
 }: {
   options: SelectOption[];
   selected: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
+  allowCustom?: boolean;
 }) {
-  const merged = options.slice();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const merged: SelectOption[] = options.slice();
   for (const s of selected) {
     if (!merged.some((o) => o.value === s)) merged.push({ value: s, label: s });
   }
+  const filtered = merged.filter(
+    (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
+  );
+  const exactMatch = merged.some((o) => o.value.toLowerCase() === q);
+  const canAddCustom = allowCustom && q.length > 0 && !exactMatch;
+
+  function toggle(value: string) {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((v) => v !== value)
+        : [...selected, value],
+    );
+  }
+
+  function addValue(value: string) {
+    const normalized = allowCustom ? value.trim().toLowerCase() : value.trim();
+    if (normalized && !selected.includes(normalized)) {
+      onChange([...selected, normalized]);
+    }
+    setQuery("");
+  }
+
+  const labelFor = (v: string) =>
+    merged.find((o) => o.value === v)?.label ?? v;
+
   return (
-    <select
-      multiple
-      className="multi-select"
-      size={Math.min(8, Math.max(2, merged.length))}
-      value={selected}
-      onChange={(e) => {
-        const values = Array.from(e.currentTarget.selectedOptions, (o) => o.value);
-        onChange(values);
-      }}
-    >
-      {merged.length === 0 && placeholder && (
-        <option disabled>{placeholder}</option>
+    <div className="combobox" ref={rootRef}>
+      <div className="combobox-control" onClick={() => setOpen(true)}>
+        {selected.map((v) => (
+          <span key={v} className="combobox-chip">
+            {labelFor(v)}
+            <button
+              type="button"
+              className="combobox-chip-x"
+              title="Remove"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggle(v);
+              }}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          className="combobox-input"
+          value={query}
+          placeholder={selected.length === 0 ? placeholder : ""}
+          onChange={(e) => {
+            setQuery(e.currentTarget.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && canAddCustom) {
+              e.preventDefault();
+              addValue(query);
+            } else if (e.key === "Escape") {
+              setOpen(false);
+            }
+          }}
+        />
+      </div>
+
+      {open && (
+        <div className="combobox-popover">
+          <div className="combobox-items">
+            {filtered.length === 0 && !canAddCustom && (
+              <div className="combobox-empty">No items found.</div>
+            )}
+            {filtered.map((o) => (
+              <div
+                key={o.value}
+                className={
+                  "combobox-item" +
+                  (selected.includes(o.value) ? " selected" : "")
+                }
+                onClick={() => toggle(o.value)}
+              >
+                <span className="combobox-check">
+                  {selected.includes(o.value) ? "✓" : ""}
+                </span>
+                {o.label}
+              </div>
+            ))}
+            {canAddCustom && (
+              <div className="combobox-item add" onClick={() => addValue(query)}>
+                + Add "{query.trim()}"
+              </div>
+            )}
+          </div>
+          {selected.length > 0 && (
+            <button
+              type="button"
+              className="combobox-clear"
+              onClick={() => onChange([])}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
       )}
-      {merged.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    </div>
   );
 }
 
@@ -209,13 +312,14 @@ function RuleForm({
     });
   }
 
-  const kindOptions: SelectOption[] = presets.map((p) => ({ value: p.name, label: p.title }));
+  const kindOptions: SelectOption[] = presets.map((p) => ({
+    value: p.name,
+    label: p.title,
+  }));
   const extOptions: SelectOption[] = allKnownExtensions(presets).map((e) => ({
     value: e,
     label: e,
   }));
-  const selectedExtOptions = form.extension.map((e) => ({ value: e, label: e }));
-  const extOptionSet = new Set(extOptions.map((o) => o.value));
 
   return (
     <form className="rule-form" onSubmit={handleSubmit}>
@@ -255,26 +359,28 @@ function RuleForm({
         <legend>Match</legend>
         <label>
           Kind
-          <MultiSelect
+          <Combobox
             options={kindOptions}
             selected={form.kind}
             onChange={(values) => set("kind", values)}
+            allowCustom={false}
+            placeholder="Select kinds…"
           />
         </label>
         <label>
           Extension
-          <MultiSelect
+          <Combobox
             options={extOptions}
             selected={form.extension}
             onChange={(values) => set("extension", values)}
+            allowCustom
+            placeholder="Type or select extensions…"
           />
         </label>
-        {selectedExtOptions.some((o) => !extOptionSet.has(o.value)) && (
-          <p className="hint">
-            Custom extensions aren't in any kind preset; you can manage lists in
-            Settings.
-          </p>
-        )}
+        <p className="hint">
+          Kinds group extensions (managed in Settings); extensions above are
+          matched in addition to any selected kinds.
+        </p>
         <label>
           Name pattern
           <input
@@ -386,17 +492,24 @@ type View =
   | { kind: "settings" };
 
 function PresetForm({
+  presets,
   initial,
   onSave,
   onCancel,
 }: {
+  presets: Preset[];
   initial?: Preset;
-  onSave: (preset: Omit<Preset, "extensions"> & { extensions: string }) => void;
+  onSave: (preset: Preset) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [extensions, setExtensions] = useState(initial?.extensions.join(", ") ?? "");
+  const [extensions, setExtensions] = useState<string[]>(initial?.extensions ?? []);
+
+  const extOptions: SelectOption[] = allKnownExtensions(presets).map((e) => ({
+    value: e,
+    label: e,
+  }));
 
   return (
     <form
@@ -406,7 +519,7 @@ function PresetForm({
         onSave({
           name: name.trim(),
           title: title.trim(),
-          extensions: extensions.trim(),
+          extensions,
         });
       }}
     >
@@ -430,11 +543,13 @@ function PresetForm({
         />
       </label>
       <label>
-        Extensions (comma separated)
-        <input
-          value={extensions}
-          onChange={(e) => setExtensions(e.currentTarget.value)}
-          placeholder="mp4, mkv, mov"
+        Extensions
+        <Combobox
+          options={extOptions}
+          selected={extensions}
+          onChange={setExtensions}
+          allowCustom
+          placeholder="Type or select extensions…"
         />
       </label>
       <div className="form-actions">
@@ -473,16 +588,9 @@ function SettingsTab({
 
       {editing && (
         <PresetForm
+          presets={presets}
           initial={editing === "new" ? undefined : editing}
-          onSave={(v) => {
-            const preset: Preset = {
-              name: v.name,
-              title: v.title,
-              extensions: v.extensions
-                .split(",")
-                .map((s) => s.trim().toLowerCase())
-                .filter(Boolean),
-            };
+          onSave={(preset) => {
             if (editing === "new") onAdd(preset);
             else onUpdate(preset);
             setEditing(null);
