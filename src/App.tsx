@@ -446,10 +446,18 @@ function RuleForm({
           Action
         </legend>
         <div className="space-y-3">
-          <div role="radiogroup" className="flex overflow-hidden rounded-lg border border-border">
+          <div
+            role="radiogroup"
+            aria-label="Action"
+            className="flex overflow-hidden rounded-lg border border-border"
+          >
             {(["move", "copy", "rename"] as ActionType[]).map((t) => (
-              <label
+              <button
                 key={t}
+                type="button"
+                role="radio"
+                aria-checked={form.action_type === t}
+                onClick={() => set("action_type", t)}
                 className={cn(
                   "flex-1 cursor-pointer px-3 py-2 text-center text-sm capitalize transition-colors",
                   form.action_type === t
@@ -458,16 +466,8 @@ function RuleForm({
                   t !== "move" && "border-l border-border",
                 )}
               >
-                <input
-                  type="radio"
-                  name="action_type"
-                  value={t}
-                  checked={form.action_type === t}
-                  onChange={() => set("action_type", t)}
-                  className="sr-only"
-                />
                 {t}
-              </label>
+              </button>
             ))}
           </div>
 
@@ -934,7 +934,7 @@ function App() {
 
   return (
     <div
-      className="flex h-full select-none flex-col"
+      className="flex h-full select-none flex-col overflow-hidden"
       onContextMenu={(e) => e.preventDefault()}
     >
       <TitleBar />
