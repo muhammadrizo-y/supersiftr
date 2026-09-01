@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
@@ -491,6 +492,64 @@ type View =
   | { kind: "activity" }
   | { kind: "settings" };
 
+function TitleBar() {
+  const appWindow = getCurrentWindow();
+
+  return (
+    <header className="titlebar" data-tauri-drag-region>
+      <span className="titlebar-title" data-tauri-drag-region>
+        File Automation
+      </span>
+      <div className="titlebar-controls">
+        <button
+          type="button"
+          className="titlebar-btn"
+          title="Minimize"
+          onClick={() => appWindow.minimize()}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" focusable="false" aria-hidden="true">
+            <rect x="0" y="4.4" width="10" height="1.2" rx="0.6" fill="currentColor" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="titlebar-btn"
+          title="Maximize"
+          onClick={() => appWindow.toggleMaximize()}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" focusable="false" aria-hidden="true">
+            <rect
+              x="0.8"
+              y="0.8"
+              width="8.4"
+              height="8.4"
+              rx="0.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.2"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="titlebar-btn close"
+          title="Close"
+          onClick={() => appWindow.close()}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" focusable="false" aria-hidden="true">
+            <path
+              d="M1.5 1.5l7 7M8.5 1.5l-7 7"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+    </header>
+  );
+}
+
 function PresetForm({
   presets,
   initial,
@@ -808,7 +867,9 @@ function App() {
   }
 
   return (
-    <main className="app">
+    <div className="app-shell">
+      <TitleBar />
+      <main className="app">
       <aside className="sidebar">
         <header className="sidebar-header">
           <h1>File Automation</h1>
@@ -863,7 +924,8 @@ function App() {
       </aside>
 
       <section className="main">{renderMain()}</section>
-    </main>
+      </main>
+    </div>
   );
 }
 
