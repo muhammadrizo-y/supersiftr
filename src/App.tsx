@@ -174,7 +174,7 @@ function Combobox({
           type="button"
           role="combobox"
           aria-expanded={open}
-          className="flex min-h-9 w-full cursor-text flex-wrap items-center gap-1.5 border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="flex min-h-9 w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
           {selected.length === 0 && (
             <span className="pl-1 text-muted-foreground">{placeholder}</span>
@@ -182,7 +182,7 @@ function Combobox({
           {selected.map((v) => (
             <span
               key={v}
-              className="flex items-center gap-1 border border-border bg-muted px-1.5 py-0.5 text-xs"
+              className="flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 text-xs"
             >
               {labelFor(v)}
               <span
@@ -334,7 +334,7 @@ function RuleForm({
         />
       </div>
 
-      <fieldset className="border border-border p-4">
+      <fieldset className="rounded-lg border border-border p-4">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Watch
         </legend>
@@ -346,7 +346,7 @@ function RuleForm({
             No folders selected yet.
           </p>
         ) : (
-          <ul className="divide-y divide-border border border-border">
+          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
             {form.watched_folders.map((folder) => (
               <li
                 key={folder}
@@ -380,7 +380,7 @@ function RuleForm({
         </Button>
       </fieldset>
 
-      <fieldset className="border border-border p-4">
+      <fieldset className="rounded-lg border border-border p-4">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Match
         </legend>
@@ -441,12 +441,12 @@ function RuleForm({
         </div>
       </fieldset>
 
-      <fieldset className="border border-border p-4">
+      <fieldset className="rounded-lg border border-border p-4">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Action
         </legend>
         <div className="space-y-3">
-          <div role="radiogroup" className="flex border border-border">
+          <div role="radiogroup" className="flex overflow-hidden rounded-lg border border-border">
             {(["move", "copy", "rename"] as ActionType[]).map((t) => (
               <label
                 key={t}
@@ -606,7 +606,7 @@ function PresetForm({
 
   return (
     <form
-      className="mb-4 space-y-3 border border-border bg-muted/30 p-4"
+      className="mb-4 space-y-3 rounded-lg border border-border bg-muted/30 p-4"
       onSubmit={(e) => {
         e.preventDefault();
         onSave({
@@ -701,7 +701,7 @@ function SettingsTab({
       ) : (
         <ul className="space-y-2">
           {presets.map((p) => (
-            <li key={p.name} className="border border-border px-4 py-3">
+            <li key={p.name} className="rounded-lg border border-border px-4 py-3">
               <div className="flex items-center gap-2">
                 <strong className="text-sm font-medium">{p.title}</strong>
                 <span className="text-xs text-muted-foreground">{p.name}</span>
@@ -800,7 +800,7 @@ function App() {
     return (
       <section className="px-6 py-5">
         {missing.length > 0 && (
-          <div className="mb-4 flex items-start gap-2 border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <span>
               Missing kind preset{missing.length > 1 ? "s" : ""}:{" "}
@@ -810,7 +810,7 @@ function App() {
           </div>
         )}
         {!runnable && (
-          <div className="mb-4 flex items-start gap-2 border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <span>
               This rule has no valid criteria (missing kind preset) and will
@@ -933,7 +933,10 @@ function App() {
   }
 
   return (
-    <div className="flex h-full select-none flex-col">
+    <div
+      className="flex h-full select-none flex-col"
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <TitleBar />
       <div className="flex min-h-0 flex-1">
         <Sidebar
