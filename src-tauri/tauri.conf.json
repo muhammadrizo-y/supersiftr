@@ -15,6 +15,8 @@
         "title": "file-automation-util",
         "width": 800,
         "height": 600,
+        "visible": false,
+        "backgroundColor": "#1a1a1a",
         "decorations": false
       }
     ],
