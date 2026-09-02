@@ -23,6 +23,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -30,6 +31,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type {
   ActionType,
@@ -349,16 +358,22 @@ function RuleForm({
                 <span className="select-text truncate font-mono text-xs">
                   {folder}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 shrink-0"
-                  title={`Remove ${folder}`}
-                  onClick={() => removeWatchedFolder(folder)}
-                >
-                  <X className="size-3.5" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 shrink-0"
+                        onClick={() => removeWatchedFolder(folder)}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>Remove {folder}</TooltipContent>
+                </Tooltip>
               </li>
             ))}
           </ul>
@@ -414,21 +429,21 @@ function RuleForm({
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="date-after">Modified after</Label>
-              <Input
-                id="date-after"
-                type="date"
+              <Label>Modified after</Label>
+              <DatePicker
                 value={form.date_after}
-                onChange={(e) => set("date_after", e.currentTarget.value)}
+                onChange={(value) => set("date_after", value)}
+                placeholder="Pick a date"
+                className="w-full"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="date-before">Modified before</Label>
-              <Input
-                id="date-before"
-                type="date"
+              <Label>Modified before</Label>
+              <DatePicker
                 value={form.date_before}
-                onChange={(e) => set("date_before", e.currentTarget.value)}
+                onChange={(value) => set("date_before", value)}
+                placeholder="Pick a date"
+                className="w-full"
               />
             </div>
           </div>
@@ -549,30 +564,48 @@ function TitleBar() {
         File Automation
       </span>
       <div className="flex h-full items-stretch">
-        <button
-          type="button"
-          title="Minimize"
-          onClick={() => appWindow.minimize()}
-          className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-        >
-          <Minus className="size-3.5" />
-        </button>
-        <button
-          type="button"
-          title="Maximize"
-          onClick={() => appWindow.toggleMaximize()}
-          className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-        >
-          <Square className="size-3" />
-        </button>
-        <button
-          type="button"
-          title="Close"
-          onClick={() => appWindow.close()}
-          className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
-        >
-          <X className="size-3.5" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => appWindow.minimize()}
+                className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <Minus className="size-3.5" />
+              </button>
+            }
+          />
+          <TooltipContent side="bottom">Minimize</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => appWindow.toggleMaximize()}
+                className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <Square className="size-3" />
+              </button>
+            }
+          />
+          <TooltipContent side="bottom">Maximize</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => appWindow.close()}
+                className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            }
+          />
+          <TooltipContent side="bottom">Close</TooltipContent>
+        </Tooltip>
       </div>
     </header>
   );
@@ -700,23 +733,35 @@ function SettingsTab({
                 <strong className="text-sm font-medium">{p.title}</strong>
                 <span className="text-xs text-muted-foreground">{p.name}</span>
                 <div className="ml-auto flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    title="Edit"
-                    onClick={() => setEditing(p)}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    title="Delete"
-                    onClick={() => onDelete(p.name)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditing(p)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Edit</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => onDelete(p.name)}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Delete</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
               <p className="mt-1 select-text text-xs text-muted-foreground">
@@ -763,6 +808,7 @@ function App() {
     const updated = await invoke<Rule[]>("remove_rule", { index });
     setRules(updated);
     setView(updated.length ? { kind: "rule", index: 0 } : { kind: "new" });
+    toast.success("Rule deleted");
   }
 
   async function addRule(rule: Rule) {
@@ -770,11 +816,13 @@ function App() {
     setRules(updated);
     setView({ kind: "rule", index: updated.length - 1 });
     log(`Added rule: ${rule.name}`);
+    toast.success(`Rule "${rule.name}" created`);
   }
 
   async function addPreset(preset: Preset) {
     const updated = await invoke<Preset[]>("add_preset", { preset });
     setPresets(updated);
+    toast.success(`Preset "${preset.title}" created`);
   }
 
   async function updatePreset(preset: Preset) {
@@ -786,6 +834,7 @@ function App() {
     const updated = await invoke<Preset[]>("delete_preset", { name });
     setPresets(updated);
     log(`Deleted kind preset: ${name}`);
+    toast.success(`Preset "${name}" deleted`);
   }
 
   function renderRuleDetail(rule: Rule) {
@@ -833,14 +882,15 @@ function App() {
               presets.some((p) => p.name === k) ? (
                 <Badge key={k}>{presetByTitle(presets, k)}</Badge>
               ) : (
-                <Badge
-                  key={k}
-                  variant="destructive"
-                  title="This kind preset does not exist"
-                >
-                  {k}
-                </Badge>
-              ),
+                <Tooltip key={k}>
+                  <TooltipTrigger
+                    render={<Badge variant="destructive">{k}</Badge>}
+                  />
+                  <TooltipContent>
+                    This kind preset does not exist
+                  </TooltipContent>
+                </Tooltip>
+              )
             )}
           </dd>
           <dt className="text-muted-foreground">Match</dt>
@@ -927,24 +977,27 @@ function App() {
   }
 
   return (
-    <div
-      className="flex h-full select-none flex-col overflow-hidden"
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <TitleBar />
-      <div className="flex min-h-0 flex-1">
-        <Sidebar
-          rules={rules}
-          view={view}
-          onSelect={setView}
-          onDelete={(index) => void removeRule(index)}
-        />
+    <TooltipProvider>
+      <div
+        className="flex h-full select-none flex-col overflow-hidden"
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <TitleBar />
+        <div className="flex min-h-0 flex-1">
+          <Sidebar
+            rules={rules}
+            view={view}
+            onSelect={setView}
+            onDelete={(index) => void removeRule(index)}
+          />
 
-        <section className="min-w-0 flex-1 divide-y divide-border overflow-y-auto">
-          {renderMain()}
-        </section>
+          <section className="min-w-0 flex-1 divide-y divide-border overflow-y-auto">
+            {renderMain()}
+          </section>
+        </div>
       </div>
-    </div>
+      <Toaster position="bottom-right" />
+    </TooltipProvider>
   );
 }
 

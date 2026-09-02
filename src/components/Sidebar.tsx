@@ -2,6 +2,11 @@ import { Activity, Plus, Settings, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Rule, View } from "@/types";
 
@@ -48,14 +53,20 @@ function Sidebar({
     <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
         <h1 className="px-1 text-sm font-semibold">Rules</h1>
-        <Button
-          size="icon"
-          variant="ghost"
-          title="New rule"
-          onClick={() => onSelect({ kind: "new" })}
-        >
-          <Plus className="size-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => onSelect({ kind: "new" })}
+              >
+                <Plus className="size-4" />
+              </Button>
+            }
+          />
+          <TooltipContent>New rule</TooltipContent>
+        </Tooltip>
       </header>
 
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-2">
@@ -78,17 +89,23 @@ function Sidebar({
             )}
           >
             <span className="truncate">{rule.name}</span>
-            <button
-              type="button"
-              title="Delete rule"
-              className="flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(i);
-              }}
-            >
-              <Trash2 className="size-3.5" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    className="flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(i);
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                }
+              />
+              <TooltipContent side="right">Delete rule</TooltipContent>
+            </Tooltip>
           </div>
         ))}
         {rules.length === 0 && (
