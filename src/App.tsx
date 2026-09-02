@@ -4,7 +4,6 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  Check,
   Folder,
   Minus,
   Pencil,
@@ -169,40 +168,40 @@ function Combobox({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          role="combobox"
-          aria-expanded={open}
-          className="flex min-h-9 w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        >
-          {selected.length === 0 && (
-            <span className="pl-1 text-muted-foreground">{placeholder}</span>
-          )}
-          {selected.map((v) => (
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          />
+        }
+      >
+        {selected.length === 0 && (
+          <span className="pl-1 text-muted-foreground">{placeholder}</span>
+        )}
+        {selected.map((v) => (
+          <span
+            key={v}
+            className="flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 text-xs"
+          >
+            {labelFor(v)}
             <span
-              key={v}
-              className="flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 text-xs"
+              role="button"
+              tabIndex={-1}
+              aria-label={`Remove ${labelFor(v)}`}
+              className="flex cursor-pointer text-muted-foreground hover:text-foreground"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggle(v);
+              }}
             >
-              {labelFor(v)}
-              <span
-                role="button"
-                tabIndex={-1}
-                aria-label={`Remove ${labelFor(v)}`}
-                className="flex cursor-pointer text-muted-foreground hover:text-foreground"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  toggle(v);
-                }}
-              >
-                <X className="size-3" />
-              </span>
+              <X className="size-3" />
             </span>
-          ))}
-        </button>
+          </span>
+        ))}
       </PopoverTrigger>
-      <PopoverContent className="p-0" align="start">
+      <PopoverContent className="w-[var(--anchor-width)] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
             value={query}
@@ -215,17 +214,12 @@ function Combobox({
               <CommandItem
                 key={o.value}
                 value={o.value}
+                data-checked={selected.includes(o.value)}
                 onSelect={() => {
                   toggle(o.value);
                   setQuery("");
                 }}
               >
-                <Check
-                  className={cn(
-                    "size-4",
-                    selected.includes(o.value) ? "" : "opacity-0",
-                  )}
-                />
                 {o.label}
               </CommandItem>
             ))}
