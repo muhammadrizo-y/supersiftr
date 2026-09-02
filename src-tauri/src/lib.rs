@@ -14,6 +14,15 @@ use crate::rules::Rule;
 use crate::state::AppState;
 
 #[tauri::command]
+fn set_window_background(dark: bool, window: tauri::WebviewWindow) {
+    let color = match dark {
+        true => [0x1a, 0x1a, 0x1a, 255],
+        false => [255, 255, 255, 255],
+    };
+    let _ = window.set_background_color(Some(window_background(color)));
+}
+
+#[tauri::command]
 fn get_config(state: State<'_, AppState>) -> AppConfig {
     state.config.lock().unwrap().clone()
 }
@@ -155,6 +164,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            set_window_background,
             get_config,
             add_rule,
             remove_rule,
