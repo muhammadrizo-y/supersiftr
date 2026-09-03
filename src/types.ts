@@ -38,6 +38,7 @@ export type ActivityEntry = {
 
 export type View =
   | { kind: "rule"; index: number }
+  | { kind: "edit"; index: number }
   | { kind: "new" }
   | { kind: "activity" }
   | { kind: "settings" };

@@ -259,16 +259,36 @@ function Combobox({
   );
 }
 
+function formFromRule(rule?: Rule): RuleFormState {
+  if (!rule) return { ...emptyForm };
+  return {
+    name: rule.name,
+    watched_folders: rule.watched_folders,
+    kind: rule.kind,
+    extension: rule.match_criteria.extension,
+    name_pattern: rule.match_criteria.name_pattern ?? "",
+    date_after: rule.match_criteria.date_after ?? "",
+    date_before: rule.match_criteria.date_before ?? "",
+    action_type: rule.action.type,
+    destination:
+      rule.action.type === "move" || rule.action.type === "copy"
+        ? rule.action.destination
+        : "",
+    pattern: rule.action.type === "rename" ? rule.action.pattern : "",
+  };
+}
 function RuleForm({
   presets,
+  initial,
   onSubmit,
   onCancel,
 }: {
   presets: Preset[];
+  initial?: Rule;
   onSubmit: (rule: Rule) => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState<RuleFormState>(emptyForm);
+  const [form, setForm] = useState<RuleFormState>(() => formFromRule(initial));
 
   const set = <K extends keyof RuleFormState>(key: K, value: RuleFormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -522,7 +542,7 @@ function RuleForm({
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit">Add rule</Button>
+        <Button type="submit">{initial ? "Save changes" : "Add rule"}</Button>
       </div>
     </form>
   );
@@ -819,6 +839,14 @@ function App() {
     toast.success(`Rule "${rule.name}" created`);
   }
 
+  async function updateRule(index: number, rule: Rule) {
+    const updated = await invoke<Rule[]>("update_rule", { index, rule });
+    setRules(updated);
+    setView({ kind: "rule", index });
+    log(`Updated rule: ${rule.name}`);
+    toast.success(`Rule "${rule.name}" updated`);
+  }
+
   async function addPreset(preset: Preset) {
     const updated = await invoke<Preset[]>("add_preset", { preset });
     setPresets(updated);
@@ -837,7 +865,7 @@ function App() {
     toast.success(`Preset "${name}" deleted`);
   }
 
-  function renderRuleDetail(rule: Rule) {
+  function renderRuleDetail(rule: Rule, index: number) {
     const missing = missingKinds(rule, presets);
     const runnable = isRunnable(rule, presets);
     return (
@@ -861,7 +889,23 @@ function App() {
             </span>
           </div>
         )}
-        <h2 className="mb-4 text-base font-semibold">{rule.name}</h2>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold">{rule.name}</h2>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setView({ kind: "edit", index })}
+                >
+                  <Pencil className="size-3.5" /> Edit
+                </Button>
+              }
+            />
+            <TooltipContent>Edit this rule</TooltipContent>
+          </Tooltip>
+        </div>
         <dl className="grid grid-cols-[92px_1fr] gap-x-4 gap-y-2 text-sm">
           <dt className="text-muted-foreground">Watch</dt>
           <dd>
@@ -973,7 +1017,22 @@ function App() {
       );
     }
 
-    return renderRuleDetail(rule);
+    if (view.kind === "edit") {
+      return (
+        <section className="px-6 py-5">
+          <h2 className="mb-4 text-base font-semibold">Edit rule</h2>
+          <RuleForm
+            key={view.index}
+            presets={presets}
+            initial={rule}
+            onSubmit={(updated) => void updateRule(view.index, updated)}
+            onCancel={() => setView({ kind: "rule", index: view.index })}
+          />
+        </section>
+      );
+    }
+
+    return renderRuleDetail(rule, view.index);
   }
 
   return (
