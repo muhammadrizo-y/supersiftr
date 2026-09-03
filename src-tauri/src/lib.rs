@@ -52,6 +52,25 @@ fn remove_rule(index: usize, app: tauri::AppHandle) -> Result<Vec<Rule>, String>
     Ok(get_rules(app.state::<AppState>()))
 }
 
+#[tauri::command]
+fn update_rule(
+    index: usize,
+    rule: Rule,
+    app: tauri::AppHandle,
+) -> Result<Vec<Rule>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut cfg = state.config.lock().unwrap();
+        if index >= cfg.rules.len() {
+            return Err("Rule index out of bounds".into());
+        }
+        cfg.rules[index] = rule;
+        config::save(&cfg).map_err(|e| e.to_string())?;
+    }
+    AppState::restart_watchers(&app).map_err(|e| e.to_string())?;
+    Ok(get_rules(app.state::<AppState>()))
+}
+
 fn get_rules(state: State<'_, AppState>) -> Vec<Rule> {
     state.config.lock().unwrap().rules.clone()
 }
@@ -168,6 +187,7 @@ pub fn run() {
             get_config,
             add_rule,
             remove_rule,
+            update_rule,
             get_logs,
             get_log_path,
             get_presets,
