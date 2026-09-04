@@ -650,7 +650,7 @@ function TitleBar() {
 
   return (
     <header
-      className="flex h-9 shrink-0 items-center justify-between border-b border-border bg-card"
+      className="flex h-8 shrink-0 items-center justify-between bg-card"
       data-tauri-drag-region
     >
       <span
@@ -660,48 +660,30 @@ function TitleBar() {
         File Automation
       </span>
       <div className="flex h-full items-stretch">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={() => appWindow.minimize()}
-                className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <Minus className="size-3.5" />
-              </button>
-            }
-          />
-          <TooltipContent side="bottom">Minimize</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={() => appWindow.toggleMaximize()}
-                className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <Square className="size-3" />
-              </button>
-            }
-          />
-          <TooltipContent side="bottom">Maximize</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={() => appWindow.close()}
-                className="flex h-full w-11 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
-              >
-                <X className="size-3.5" />
-              </button>
-            }
-          />
-          <TooltipContent side="bottom">Close</TooltipContent>
-        </Tooltip>
+        <button
+          type="button"
+          title="Minimize"
+          onClick={() => appWindow.minimize()}
+          className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
+        >
+          <Minus className="size-3" />
+        </button>
+        <button
+          type="button"
+          title="Maximize"
+          onClick={() => appWindow.toggleMaximize()}
+          className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
+        >
+          <Square className="size-2.5" />
+        </button>
+        <button
+          type="button"
+          title="Close"
+          onClick={() => appWindow.close()}
+          className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-[#c42b1c] hover:text-white"
+        >
+          <X className="size-3" />
+        </button>
       </div>
     </header>
   );
