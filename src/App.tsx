@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  ChevronDown,
+  ChevronUp,
+  Circle,
   Folder,
   Minus,
   Pencil,
@@ -16,21 +19,9 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -125,9 +116,6 @@ function isRunnable(rule: Rule, presets: Preset[]): boolean {
 
 type SelectOption = { value: string; label: string };
 
-/** shadcn/ui combobox pattern (Popover + Command) for multi-select. Selected
- * values render as removable chips; the popover filters and can add custom
- * values (`allowCustom`). */
 function Combobox({
   options,
   selected,
@@ -143,17 +131,43 @@ function Combobox({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [highlight, setHighlight] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const q = query.trim().toLowerCase();
-  const merged: SelectOption[] = options.slice();
-  for (const s of selected) {
-    if (!merged.some((o) => o.value === s)) merged.push({ value: s, label: s });
-  }
-  const filtered = merged.filter(
-    (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
+  const labelFor = (v: string) =>
+    options.find((o) => o.value === v)?.label ?? v;
+
+  const filtered = options.filter(
+    (o) =>
+      !selected.includes(o.value) &&
+      (q === "" || o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q)),
   );
-  const exactMatch = merged.some((o) => o.value.toLowerCase() === q);
-  const canAddCustom = allowCustom && q.length > 0 && !exactMatch;
+
+  const showAddRow =
+    allowCustom &&
+    query.trim() !== "" &&
+    !options.some((o) => o.value.toLowerCase() === q) &&
+    !selected.includes(query.trim());
+
+  const rows: { type: "existing"; value: string; label: string }[] = filtered.map(
+    (o) => ({ type: "existing", value: o.value, label: o.label }),
+  );
+
+  useEffect(() => {
+    setHighlight(0);
+  }, [query, open]);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
 
   function toggle(value: string) {
     onChange(
@@ -161,31 +175,116 @@ function Combobox({
         ? selected.filter((v) => v !== value)
         : [...selected, value],
     );
+    setQuery("");
+    inputRef.current?.focus();
   }
 
-  function addValue(value: string) {
+  function addCustom(value: string) {
     const normalized = allowCustom ? value.trim().toLowerCase() : value.trim();
     if (normalized && !selected.includes(normalized)) {
       onChange([...selected, normalized]);
     }
     setQuery("");
-    setOpen(true);
+    inputRef.current?.focus();
   }
 
-  const labelFor = (v: string) =>
-    merged.find((o) => o.value === v)?.label ?? v;
+  function removeTag(value: string) {
+    onChange(selected.filter((v) => v !== value));
+    inputRef.current?.focus();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Backspace" && query === "" && selected.length > 0) {
+      removeTag(selected[selected.length - 1]);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setOpen(true);
+      setHighlight((h) => Math.min(h + 1, rows.length + (showAddRow ? 1 : 0) - 1));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const hm = Math.min(highlight, rows.length + (showAddRow ? 1 : 0) - 1);
+      if (hm < rows.length) {
+        toggle(rows[hm].value);
+      } else if (showAddRow) {
+        addCustom(query);
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      setOpen(false);
+    }
+  }
+
+  const showDropdown = open && (rows.length > 0 || showAddRow || selected.length > 0);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <button
-            type="button"
-            className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          />
-        }
+    <div ref={containerRef} className="relative">
+      {showDropdown && (
+        <div className="absolute bottom-full left-0 right-0 z-50 mb-1.5 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md">
+          {rows.length === 0 && !showAddRow && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
+          )}
+          {rows.map((row, i) => {
+            const isActive = i === highlight;
+            return (
+              <div
+                key={row.value}
+                role="option"
+                onMouseEnter={() => setHighlight(i)}
+                onClick={() => toggle(row.value)}
+                className={cn(
+                  "flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                <Circle className="size-4 shrink-0 text-muted-foreground" />
+                {row.label}
+              </div>
+            );
+          })}
+          {showAddRow && (
+            <div
+              role="option"
+              onMouseEnter={() => setHighlight(rows.length)}
+              onClick={() => addCustom(query)}
+              className={cn(
+                "flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm",
+                highlight === rows.length
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:bg-accent hover:text-accent-foreground",
+              )}
+            >
+              <Plus className="size-4 shrink-0" />
+              <span>
+                <span className={cn(highlight === rows.length ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                  Add:{" "}
+                </span>
+                {query.trim()}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div
+        className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/40 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
+        onClick={() => {
+          setOpen(true);
+          inputRef.current?.focus();
+        }}
       >
-        {selected.length === 0 && (
+        {selected.length === 0 && !query && (
           <span className="pl-1 text-muted-foreground">{placeholder}</span>
         )}
         {selected.map((v) => (
@@ -194,68 +293,45 @@ function Combobox({
             className="flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 text-xs"
           >
             {labelFor(v)}
-            <span
-              role="button"
-              tabIndex={-1}
+            <button
+              type="button"
               aria-label={`Remove ${labelFor(v)}`}
-              className="flex cursor-pointer text-muted-foreground hover:text-foreground"
               onClick={(e) => {
-                e.preventDefault();
                 e.stopPropagation();
-                toggle(v);
+                removeTag(v);
               }}
+              className="flex cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
             >
               <X className="size-3" />
-            </span>
+            </button>
           </span>
         ))}
-      </PopoverTrigger>
-      <PopoverContent className="w-[var(--anchor-width)] p-0" align="start">
-        <Command shouldFilter={false}>
-          <CommandInput
-            value={query}
-            onValueChange={setQuery}
-            placeholder="Search…"
-          />
-          <CommandList>
-            <CommandEmpty>No items found.</CommandEmpty>
-            {filtered.map((o) => (
-              <CommandItem
-                key={o.value}
-                value={o.value}
-                data-checked={selected.includes(o.value)}
-                onSelect={() => {
-                  toggle(o.value);
-                  setQuery("");
-                }}
-              >
-                {o.label}
-              </CommandItem>
-            ))}
-            {canAddCustom && (
-              <CommandItem
-                value={query}
-                onSelect={() => addValue(query)}
-              >
-                <Plus className="size-4" />
-                Add "{query.trim()}"
-              </CommandItem>
-            )}
-          </CommandList>
-          {selected.length > 0 && (
-            <div className="border-t border-border">
-              <button
-                type="button"
-                className="w-full px-3 py-2 text-left text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                onClick={() => onChange([])}
-              >
-                Clear all
-              </button>
-            </div>
-          )}
-        </Command>
-      </PopoverContent>
-    </Popover>
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          placeholder={selected.length === 0 ? placeholder : ""}
+          className="min-w-[60px] flex-1 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-muted-foreground"
+        />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((o) => !o);
+          }}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={open ? "Close dropdown" : "Open dropdown"}
+        >
+          {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+        </button>
+      </div>
+    </div>
   );
 }
 
