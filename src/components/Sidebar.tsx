@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { Rule, View } from "@/types";
+import type { Sieve, View } from "@/types";
 
 function SidebarTab({
   label,
@@ -39,12 +39,12 @@ function SidebarTab({
 }
 
 function Sidebar({
-  rules,
+  sieves,
   view,
   onSelect,
   onDelete,
 }: {
-  rules: Rule[];
+  sieves: Sieve[];
   view: View;
   onSelect: (view: View) => void;
   onDelete: (index: number) => void;
@@ -52,7 +52,7 @@ function Sidebar({
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
-        <h1 className="px-1 text-sm font-semibold">Rules</h1>
+        <h1 className="px-1 text-sm font-semibold">Sieves</h1>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -65,30 +65,30 @@ function Sidebar({
               </Button>
             }
           />
-          <TooltipContent>New rule</TooltipContent>
+          <TooltipContent>New sieve</TooltipContent>
         </Tooltip>
       </header>
 
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-2">
-        {rules.map((rule, i) => (
+        {sieves.map((sieve, i) => (
           <div
             key={i}
             role="button"
             tabIndex={0}
-            onClick={() => onSelect({ kind: "rule", index: i })}
+            onClick={() => onSelect({ kind: "sieve", index: i })}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
-                onSelect({ kind: "rule", index: i });
+                onSelect({ kind: "sieve", index: i });
               }
             }}
             className={cn(
               "group flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-              view.kind === "rule" && view.index === i
+              view.kind === "sieve" && view.index === i
                 ? "bg-accent text-accent-foreground"
                 : "text-foreground hover:bg-accent/60",
             )}
           >
-            <span className="truncate">{rule.name}</span>
+            <span className="truncate">{sieve.name}</span>
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -104,12 +104,12 @@ function Sidebar({
                   </button>
                 }
               />
-              <TooltipContent side="right">Delete rule</TooltipContent>
+              <TooltipContent side="right">Delete sieve</TooltipContent>
             </Tooltip>
           </div>
         ))}
-        {rules.length === 0 && (
-          <p className="px-2 py-1 text-xs text-muted-foreground">No rules yet.</p>
+        {sieves.length === 0 && (
+          <p className="px-2 py-1 text-xs text-muted-foreground">No sieves yet.</p>
         )}
       </nav>
 

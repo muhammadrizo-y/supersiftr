@@ -17,7 +17,6 @@ import {
   X,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
@@ -33,40 +32,79 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   ActionType,
-  AppConfig,
   ActivityEntry,
-  MatchCriteria,
+  ConditionMode,
+  ConditionOperator,
+  ConditionProperty,
   Preset,
-  Rule,
   RuleAction,
+  Sieve,
+  SieveCondition,
   View,
 } from "@/types";
 import Sidebar from "@/components/Sidebar";
 
-type RuleFormState = {
-  name: string;
-  watched_folders: string[];
-  kind: string[];
-  extension: string[];
-  name_pattern: string;
-  date_after: string;
-  date_before: string;
-  action_type: ActionType;
+type ConditionRowState = {
+  property: ConditionProperty;
+  operator: ConditionOperator;
+  values: string[];
+};
+
+type ActionRowState = {
+  type: ActionType;
   destination: string;
   pattern: string;
 };
 
-const emptyForm: RuleFormState = {
+type SieveFormState = {
+  name: string;
+  watched_folders: string[];
+  mode: ConditionMode;
+  conditions: ConditionRowState[];
+  actions: ActionRowState[];
+};
+
+const PROPERTY_OPTIONS: { value: ConditionProperty; label: string }[] = [
+  { value: "kind", label: "Kind" },
+  { value: "extension", label: "Extension" },
+  { value: "name", label: "Name" },
+  { value: "modified", label: "Modified" },
+];
+
+const OPERATOR_OPTIONS: Record<
+  ConditionProperty,
+  { value: ConditionOperator; label: string }[]
+> = {
+  kind: [
+    { value: "is", label: "is" },
+    { value: "is_not", label: "isn't" },
+  ],
+  extension: [
+    { value: "is", label: "is" },
+    { value: "is_not", label: "isn't" },
+  ],
+  name: [
+    { value: "matches", label: "matches" },
+    { value: "not_matches", label: "doesn't match" },
+  ],
+  modified: [
+    { value: "after", label: "after" },
+    { value: "before", label: "before" },
+  ],
+};
+
+const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
+  { value: "move", label: "Move" },
+  { value: "copy", label: "Copy" },
+  { value: "rename", label: "Rename" },
+];
+
+const emptyForm: SieveFormState = {
   name: "",
   watched_folders: [],
-  kind: [],
-  extension: [],
-  name_pattern: "",
-  date_after: "",
-  date_before: "",
-  action_type: "move",
-  destination: "",
-  pattern: "",
+  mode: "all",
+  conditions: [],
+  actions: [],
 };
 
 async function pickFolder(): Promise<string | null> {
@@ -79,39 +117,25 @@ function presetByTitle(presets: Preset[], key: string): string {
   return p ? p.title : key;
 }
 
-/** Deduplicated, sorted extensions across all presets (source list for the
- * extension multiselect). */
 function allKnownExtensions(presets: Preset[]): string[] {
   const set = new Set<string>();
   for (const p of presets) for (const e of p.extensions) set.add(e.toLowerCase());
   return Array.from(set).sort();
 }
 
-/** Extensions this rule matches: union of its kinds' preset extensions and its
- * own extension list. Mirrors the backend's `resolved_extensions`. */
-function resolvedExtensions(rule: Pick<Rule, "kind" | "match_criteria">, presets: Preset[]): string[] {
+function missingKinds(sieve: Sieve, presets: Preset[]): string[] {
   const set = new Set<string>();
-  for (const name of rule.kind) {
-    const p = presets.find((x) => x.name === name);
-    if (p) for (const e of p.extensions) set.add(e.toLowerCase());
+  for (const c of sieve.conditions) {
+    if (c.property !== "kind") continue;
+    for (const v of c.values) {
+      if (!presets.some((p) => p.name === v)) set.add(v);
+    }
   }
-  for (const e of rule.match_criteria.extension) set.add(e.toLowerCase());
-  return Array.from(set).sort();
+  return Array.from(set);
 }
 
-function missingKinds(rule: Pick<Rule, "kind">, presets: Preset[]): string[] {
-  return rule.kind.filter((k) => !presets.some((p) => p.name === k));
-}
-
-/** Mirrors the backend's `is_runnable`: a rule whose only constraint was a
- * now-missing kind preset has nothing left to run on. */
-function isRunnable(rule: Rule, presets: Preset[]): boolean {
-  if (resolvedExtensions(rule, presets).length > 0) return true;
-  return !!(
-    rule.match_criteria.name_pattern ||
-    rule.match_criteria.date_after ||
-    rule.match_criteria.date_before
-  );
+function isRunnable(sieve: Sieve): boolean {
+  return sieve.conditions.length > 0 && sieve.actions.length > 0;
 }
 
 type SelectOption = { value: string; label: string };
@@ -332,39 +356,80 @@ function Combobox({
   );
 }
 
-function formFromRule(rule?: Rule): RuleFormState {
-  if (!rule) return { ...emptyForm };
+function actionRowFromAction(action: RuleAction): ActionRowState {
+  switch (action.type) {
+    case "move":
+    case "copy":
+      return { type: action.type, destination: action.destination, pattern: "" };
+    case "rename":
+      return { type: "rename", destination: "", pattern: action.pattern };
+  }
+}
+
+function formFromSieve(sieve?: Sieve): SieveFormState {
+  if (!sieve) return { ...emptyForm };
   return {
-    name: rule.name,
-    watched_folders: rule.watched_folders,
-    kind: rule.kind,
-    extension: rule.match_criteria.extension,
-    name_pattern: rule.match_criteria.name_pattern ?? "",
-    date_after: rule.match_criteria.date_after ?? "",
-    date_before: rule.match_criteria.date_before ?? "",
-    action_type: rule.action.type,
-    destination:
-      rule.action.type === "move" || rule.action.type === "copy"
-        ? rule.action.destination
-        : "",
-    pattern: rule.action.type === "rename" ? rule.action.pattern : "",
+    name: sieve.name,
+    watched_folders: sieve.watched_folders,
+    mode: sieve.mode,
+    conditions: sieve.conditions.map((c) => ({ ...c })),
+    actions: sieve.actions.map(actionRowFromAction),
   };
 }
-function RuleForm({
+
+function SieveForm({
   presets,
   initial,
   onSubmit,
   onCancel,
 }: {
   presets: Preset[];
-  initial?: Rule;
-  onSubmit: (rule: Rule) => void;
+  initial?: Sieve;
+  onSubmit: (sieve: Sieve) => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState<RuleFormState>(() => formFromRule(initial));
+  const [form, setForm] = useState<SieveFormState>(() => formFromSieve(initial));
 
-  const set = <K extends keyof RuleFormState>(key: K, value: RuleFormState[K]) =>
+  const set = <K extends keyof SieveFormState>(key: K, value: SieveFormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  const updateCondition = (index: number, patch: Partial<ConditionRowState>) =>
+    setForm((prev) => ({
+      ...prev,
+      conditions: prev.conditions.map((c, i) => (i === index ? { ...c, ...patch } : c)),
+    }));
+
+  function setConditionProperty(index: number, property: ConditionProperty) {
+    updateCondition(index, {
+      property,
+      operator: OPERATOR_OPTIONS[property][0].value,
+      values: [],
+    });
+  }
+
+  function removeCondition(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      conditions: prev.conditions.filter((_, i) => i !== index),
+    }));
+  }
+
+  const updateAction = (index: number, patch: Partial<ActionRowState>) =>
+    setForm((prev) => ({
+      ...prev,
+      actions: prev.actions.map((a, i) => (i === index ? { ...a, ...patch } : a)),
+    }));
+
+  function setActionType(index: number, type: ActionType) {
+    updateAction(index, { type, destination: "", pattern: "" });
+  }
+
+  function removeAction(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      actions: prev.actions.filter((_, i) => i !== index),
+    }));
+  }
 
   async function addWatchedFolder() {
     const folder = await pickFolder();
@@ -380,31 +445,35 @@ function RuleForm({
     );
   }
 
-  async function chooseDestination() {
-    const folder = await pickFolder();
-    if (folder) set("destination", folder);
-  }
-
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const criteria: MatchCriteria = {
-      extension: form.extension.map((x) => x.trim().toLowerCase()).filter(Boolean),
-      name_pattern: form.name_pattern.trim() || null,
-      date_after: form.date_after.trim() || null,
-      date_before: form.date_before.trim() || null,
-    };
-    const action: RuleAction =
-      form.action_type === "move"
-        ? { type: "move", destination: form.destination.trim() }
-        : form.action_type === "copy"
-          ? { type: "copy", destination: form.destination.trim() }
-          : { type: "rename", pattern: form.pattern.trim() };
+    const conditions: SieveCondition[] = form.conditions
+      .map((c) => ({
+        property: c.property,
+        operator: c.operator,
+        values: c.values
+          .map((v) => (c.property === "extension" ? v.trim().toLowerCase() : v.trim()))
+          .filter(Boolean),
+      }))
+      .filter((c) => c.values.length > 0);
+
+    const actions: RuleAction[] = form.actions
+      .map((a) => {
+        if (a.type === "rename") {
+          return { type: "rename" as const, pattern: a.pattern.trim() };
+        }
+        return { type: a.type, destination: a.destination.trim() };
+      })
+      .filter(
+        (a) => (a.type === "rename" ? a.pattern !== "" : a.destination !== ""),
+      );
+
     onSubmit({
       name: form.name.trim(),
       watched_folders: form.watched_folders,
-      kind: form.kind,
-      match_criteria: criteria,
-      action,
+      mode: form.mode,
+      conditions,
+      actions,
     });
   }
 
@@ -420,9 +489,9 @@ function RuleForm({
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="space-y-1.5">
-        <Label htmlFor="rule-name">Rule name *</Label>
+        <Label htmlFor="sieve-name">Sieve name *</Label>
         <Input
-          id="rule-name"
+          id="sieve-name"
           value={form.name}
           onChange={(e) => set("name", e.currentTarget.value)}
           placeholder="Sort PDFs"
@@ -435,7 +504,7 @@ function RuleForm({
           Watch
         </legend>
         <p className="mb-2 text-xs text-muted-foreground">
-          Files added to any of these folders will be checked against this rule.
+          Files added to any of these folders will be checked against this sieve.
         </p>
         {form.watched_folders.length === 0 ? (
           <p className="py-1 text-sm text-muted-foreground">
@@ -487,59 +556,141 @@ function RuleForm({
           Match
         </legend>
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Kind</Label>
-            <Combobox
-              options={kindOptions}
-              selected={form.kind}
-              onChange={(values) => set("kind", values)}
-              allowCustom={false}
-              placeholder="Select kinds…"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Extension</Label>
-            <Combobox
-              options={extOptions}
-              selected={form.extension}
-              onChange={(values) => set("extension", values)}
-              allowCustom
-              placeholder="Type or select extensions…"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Kinds group extensions (managed in Settings); extensions above are
-            matched in addition to any selected kinds.
-          </p>
-          <div className="space-y-1.5">
-            <Label htmlFor="name-pattern">Name pattern</Label>
-            <Input
-              id="name-pattern"
-              value={form.name_pattern}
-              onChange={(e) => set("name_pattern", e.currentTarget.value)}
-              placeholder="*invoice*"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Modified after</Label>
-              <DatePicker
-                value={form.date_after}
-                onChange={(value) => set("date_after", value)}
-                placeholder="Pick a date"
-                className="w-full"
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-1.5 text-sm">
+              If
+              <select
+                value={form.mode}
+                onChange={(e) => set("mode", e.currentTarget.value as ConditionMode)}
+                className="h-8 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <option value="all">all</option>
+                <option value="any">any</option>
+              </select>
+              of the conditions are met
+            </p>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="size-8 shrink-0"
+                    aria-label="Add condition"
+                    onClick={() =>
+                      set("conditions", [
+                        ...form.conditions,
+                        { property: "kind", operator: "is", values: [] },
+                      ])
+                    }
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                }
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Modified before</Label>
-              <DatePicker
-                value={form.date_before}
-                onChange={(value) => set("date_before", value)}
-                placeholder="Pick a date"
-                className="w-full"
-              />
-            </div>
+              <TooltipContent>Add condition</TooltipContent>
+            </Tooltip>
           </div>
+
+          {form.conditions.length === 0 ? (
+            <p className="py-1 text-sm text-muted-foreground">
+              Add a condition to define what files match.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {form.conditions.map((c, i) => (
+                <li
+                  key={i}
+                  className="flex items-center gap-2 rounded-lg border border-border p-2"
+                >
+                  <select
+                    value={c.property}
+                    onChange={(e) =>
+                      setConditionProperty(i, e.currentTarget.value as ConditionProperty)
+                    }
+                    className="h-8 shrink-0 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {PROPERTY_OPTIONS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={c.operator}
+                    onChange={(e) =>
+                      updateCondition(i, {
+                        operator: e.currentTarget.value as ConditionOperator,
+                      })
+                    }
+                    className="h-8 shrink-0 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {OPERATOR_OPTIONS[c.property].map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="min-w-0 flex-1">
+                    {c.property === "kind" && (
+                      <Combobox
+                        options={kindOptions}
+                        selected={c.values}
+                        onChange={(values) => updateCondition(i, { values })}
+                        allowCustom={false}
+                        placeholder="Select kinds…"
+                      />
+                    )}
+                    {c.property === "extension" && (
+                      <Combobox
+                        options={extOptions}
+                        selected={c.values}
+                        onChange={(values) => updateCondition(i, { values })}
+                        allowCustom
+                        placeholder="Type or select extensions…"
+                      />
+                    )}
+                    {c.property === "name" && (
+                      <Combobox
+                        options={[]}
+                        selected={c.values}
+                        onChange={(values) => updateCondition(i, { values })}
+                        allowCustom
+                        placeholder="Add name patterns…"
+                      />
+                    )}
+                    {c.property === "modified" && (
+                      <DatePicker
+                        value={c.values[0] ?? ""}
+                        onChange={(value) =>
+                          updateCondition(i, { values: value ? [value] : [] })
+                        }
+                        placeholder="Pick a date"
+                        className="w-full"
+                      />
+                    )}
+                  </div>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => removeCondition(i)}
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Remove condition</TooltipContent>
+                  </Tooltip>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </fieldset>
 
@@ -548,66 +699,111 @@ function RuleForm({
           Action
         </legend>
         <div className="space-y-3">
-          <div
-            role="radiogroup"
-            aria-label="Action"
-            className="flex overflow-hidden rounded-lg border border-border"
-          >
-            {(["move", "copy", "rename"] as ActionType[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                role="radio"
-                aria-checked={form.action_type === t}
-                onClick={() => set("action_type", t)}
-                className={cn(
-                  "flex-1 cursor-pointer px-3 py-2 text-center text-sm capitalize transition-colors",
-                  form.action_type === t
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50",
-                  t !== "move" && "border-l border-border",
-                )}
-              >
-                {t}
-              </button>
-            ))}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm">Do the following to the matched file:</p>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="size-8 shrink-0"
+                    aria-label="Add action"
+                    onClick={() =>
+                      set("actions", [
+                        ...form.actions,
+                        { type: "move", destination: "", pattern: "" },
+                      ])
+                    }
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>Add action</TooltipContent>
+            </Tooltip>
           </div>
 
-          {form.action_type === "rename" ? (
-            <div className="space-y-1.5">
-              <Label htmlFor="rename-pattern">
-                Rename pattern (use {"{name}"} for filename)
-              </Label>
-              <Input
-                id="rename-pattern"
-                value={form.pattern}
-                onChange={(e) => set("pattern", e.currentTarget.value)}
-                placeholder="report_{name}"
-                required
-              />
-            </div>
+          {form.actions.length === 0 ? (
+            <p className="py-1 text-sm text-muted-foreground">
+              Add an action to run on matched files.
+            </p>
           ) : (
-            <div className="space-y-1.5">
-              <Label htmlFor="destination">Destination folder *</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="destination"
-                  value={form.destination}
-                  onChange={(e) => set("destination", e.currentTarget.value)}
-                  placeholder="D:\Temp"
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={chooseDestination}
+            <ul className="space-y-2">
+              {form.actions.map((a, i) => (
+                <li
+                  key={i}
+                  className="flex items-center gap-2 rounded-lg border border-border p-2"
                 >
-                  <Folder className="size-3.5" /> Browse…
-                </Button>
-              </div>
-            </div>
+                  <select
+                    value={a.type}
+                    onChange={(e) => setActionType(i, e.currentTarget.value as ActionType)}
+                    className="h-8 shrink-0 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {ACTION_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {a.type === "rename" ? "with pattern:" : "to folder:"}
+                  </span>
+                  {a.type === "rename" ? (
+                    <Input
+                      value={a.pattern}
+                      onChange={(e) => updateAction(i, { pattern: e.currentTarget.value })}
+                      placeholder="report_{name}"
+                      className="flex-1"
+                    />
+                  ) : (
+                    <>
+                      <Input
+                        value={a.destination}
+                        onChange={(e) =>
+                          updateAction(i, { destination: e.currentTarget.value })
+                        }
+                        placeholder="D:\Temp"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const folder = await pickFolder();
+                          if (folder) updateAction(i, { destination: folder });
+                        }}
+                      >
+                        <Folder className="size-3.5" /> Browse…
+                      </Button>
+                    </>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => removeAction(i)}
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Remove action</TooltipContent>
+                  </Tooltip>
+                </li>
+              ))}
+            </ul>
           )}
+          <p className="text-xs text-muted-foreground">
+            Rename patterns can use {"{name}"} for the original filename. Actions
+            run in order.
+          </p>
         </div>
       </fieldset>
 
@@ -615,20 +811,32 @@ function RuleForm({
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit">{initial ? "Save changes" : "Add rule"}</Button>
+        <Button type="submit">{initial ? "Save changes" : "Add sieve"}</Button>
       </div>
     </form>
   );
 }
 
-function describeCriteria(criteria: MatchCriteria, kinds: string[]): string {
-  const parts: string[] = [];
-  if (kinds.length) parts.push(`kinds: ${kinds.join(", ")}`);
-  if (criteria.extension.length) parts.push(`extensions: ${criteria.extension.join(", ")}`);
-  if (criteria.name_pattern) parts.push(`name matches "${criteria.name_pattern}"`);
-  if (criteria.date_after) parts.push(`modified after ${criteria.date_after}`);
-  if (criteria.date_before) parts.push(`modified before ${criteria.date_before}`);
-  return parts.length ? parts.join(", ") : "any file";
+function describeCondition(c: SieveCondition, presets: Preset[]): string {
+  const values = c.values
+    .map((v) => (c.property === "kind" ? presetByTitle(presets, v) : v))
+    .join(", ");
+  switch (c.property) {
+    case "kind":
+      return `kind ${c.operator === "is" ? "is" : "isn't"} ${values}`;
+    case "extension":
+      return `extension ${c.operator === "is" ? "is" : "isn't"} ${values}`;
+    case "name":
+      return `name ${c.operator === "matches" ? "matches" : "doesn't match"} ${values}`;
+    case "modified":
+      return `modified ${c.operator} ${values}`;
+  }
+}
+
+function describeConditions(sieve: Sieve, presets: Preset[]): string {
+  if (sieve.conditions.length === 0) return "any file";
+  const parts = sieve.conditions.map((c) => describeCondition(c, presets));
+  return sieve.mode === "all" ? parts.join(" and ") : parts.join(" or ");
 }
 
 function describeAction(action: RuleAction): string {
@@ -640,6 +848,10 @@ function describeAction(action: RuleAction): string {
     case "rename":
       return `Rename to ${action.pattern}`;
   }
+}
+
+function describeActions(actions: RuleAction[]): string {
+  return actions.map(describeAction).join("; then ");
 }
 
 function TitleBar() {
@@ -781,8 +993,8 @@ function SettingsTab({
         </Button>
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
-        Kind presets group extensions under a reusable kind. Rules reference
-        kinds by id, so renaming a title updates every rule automatically.
+        Kind presets group extensions under a reusable kind. Sieves reference
+        kinds by id, so renaming a title updates every sieve automatically.
       </p>
 
       {editing && (
@@ -851,7 +1063,7 @@ function SettingsTab({
 }
 
 function App() {
-  const [rules, setRules] = useState<Rule[]>([]);
+  const [sieves, setSieves] = useState<Sieve[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [view, setView] = useState<View>({ kind: "new" });
@@ -861,9 +1073,9 @@ function App() {
   }, []);
 
   useEffect(() => {
-    invoke<AppConfig>("get_config").then((config) => {
-      setRules(config.rules);
-      setView(config.rules.length ? { kind: "rule", index: 0 } : { kind: "new" });
+    invoke<Sieve[]>("get_sieves").then((sieves) => {
+      setSieves(sieves);
+      setView(sieves.length ? { kind: "sieve", index: 0 } : { kind: "new" });
     });
     invoke<Preset[]>("get_presets").then(setPresets);
     invoke<string[]>("get_logs", { count: 200 }).then((logs) =>
@@ -879,27 +1091,27 @@ function App() {
     };
   }, [log]);
 
-  async function removeRule(index: number) {
-    const updated = await invoke<Rule[]>("remove_rule", { index });
-    setRules(updated);
-    setView(updated.length ? { kind: "rule", index: 0 } : { kind: "new" });
-    toast.success("Rule deleted");
+  async function removeSieve(index: number) {
+    const updated = await invoke<Sieve[]>("remove_sieve", { index });
+    setSieves(updated);
+    setView(updated.length ? { kind: "sieve", index: 0 } : { kind: "new" });
+    toast.success("Sieve deleted");
   }
 
-  async function addRule(rule: Rule) {
-    const updated = await invoke<Rule[]>("add_rule", { rule });
-    setRules(updated);
-    setView({ kind: "rule", index: updated.length - 1 });
-    log(`Added rule: ${rule.name}`);
-    toast.success(`Rule "${rule.name}" created`);
+  async function addSieve(sieve: Sieve) {
+    const updated = await invoke<Sieve[]>("add_sieve", { sieve });
+    setSieves(updated);
+    setView({ kind: "sieve", index: updated.length - 1 });
+    log(`Added sieve: ${sieve.name}`);
+    toast.success(`Sieve "${sieve.name}" created`);
   }
 
-  async function updateRule(index: number, rule: Rule) {
-    const updated = await invoke<Rule[]>("update_rule", { index, rule });
-    setRules(updated);
-    setView({ kind: "rule", index });
-    log(`Updated rule: ${rule.name}`);
-    toast.success(`Rule "${rule.name}" updated`);
+  async function updateSieve(index: number, sieve: Sieve) {
+    const updated = await invoke<Sieve[]>("update_sieve", { index, sieve });
+    setSieves(updated);
+    setView({ kind: "sieve", index });
+    log(`Updated sieve: ${sieve.name}`);
+    toast.success(`Sieve "${sieve.name}" updated`);
   }
 
   async function addPreset(preset: Preset) {
@@ -920,9 +1132,8 @@ function App() {
     toast.success(`Preset "${name}" deleted`);
   }
 
-  function renderRuleDetail(rule: Rule, index: number) {
-    const missing = missingKinds(rule, presets);
-    const runnable = isRunnable(rule, presets);
+  function renderSieveDetail(sieve: Sieve, index: number) {
+    const missing = missingKinds(sieve, presets);
     return (
       <section className="px-6 py-5">
         {missing.length > 0 && (
@@ -935,17 +1146,14 @@ function App() {
             </span>
           </div>
         )}
-        {!runnable && (
+        {!isRunnable(sieve) && (
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-            <span>
-              This rule has no valid criteria (missing kind preset) and will
-              never run.
-            </span>
+            <span>This sieve has no conditions or actions and will never run.</span>
           </div>
         )}
         <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold">{rule.name}</h2>
+          <h2 className="text-base font-semibold">{sieve.name}</h2>
           <Tooltip>
             <TooltipTrigger
               render={
@@ -958,49 +1166,24 @@ function App() {
                 </Button>
               }
             />
-            <TooltipContent>Edit this rule</TooltipContent>
+            <TooltipContent>Edit this sieve</TooltipContent>
           </Tooltip>
         </div>
         <dl className="grid grid-cols-[92px_1fr] gap-x-4 gap-y-2 text-sm">
           <dt className="text-muted-foreground">Watch</dt>
           <dd>
             <ul className="space-y-0.5">
-              {rule.watched_folders.map((f) => (
+              {sieve.watched_folders.map((f) => (
                 <li key={f} className="select-text font-mono text-xs">
                   {f}
                 </li>
               ))}
             </ul>
           </dd>
-          <dt className="text-muted-foreground">Kind</dt>
-          <dd className="flex flex-wrap items-center gap-1.5">
-            {rule.kind.length === 0 && (
-              <span className="text-muted-foreground">none</span>
-            )}
-            {rule.kind.map((k) =>
-              presets.some((p) => p.name === k) ? (
-                <Badge key={k}>{presetByTitle(presets, k)}</Badge>
-              ) : (
-                <Tooltip key={k}>
-                  <TooltipTrigger
-                    render={<Badge variant="destructive">{k}</Badge>}
-                  />
-                  <TooltipContent>
-                    This kind preset does not exist
-                  </TooltipContent>
-                </Tooltip>
-              )
-            )}
-          </dd>
           <dt className="text-muted-foreground">Match</dt>
-          <dd>
-            {describeCriteria(
-              rule.match_criteria,
-              rule.kind.map((k) => presetByTitle(presets, k)),
-            )}
-          </dd>
+          <dd>{describeConditions(sieve, presets)}</dd>
           <dt className="text-muted-foreground">Action</dt>
-          <dd>{describeAction(rule.action)}</dd>
+          <dd>{describeActions(sieve.actions)}</dd>
         </dl>
       </section>
     );
@@ -1010,13 +1193,13 @@ function App() {
     if (view.kind === "new") {
       return (
         <section className="px-6 py-5">
-          <h2 className="mb-4 text-base font-semibold">New rule</h2>
-          <RuleForm
+          <h2 className="mb-4 text-base font-semibold">New sieve</h2>
+          <SieveForm
             presets={presets}
-            onSubmit={addRule}
+            onSubmit={addSieve}
             onCancel={() =>
               setView(
-                rules.length ? { kind: "rule", index: 0 } : { kind: "activity" },
+                sieves.length ? { kind: "sieve", index: 0 } : { kind: "activity" },
               )
             }
           />
@@ -1063,11 +1246,11 @@ function App() {
       );
     }
 
-    const rule = rules[view.index];
-    if (!rule) {
+    const sieve = sieves[view.index];
+    if (!sieve) {
       return (
         <section className="px-6 py-5">
-          <p className="text-sm text-muted-foreground">No rule selected.</p>
+          <p className="text-sm text-muted-foreground">No sieve selected.</p>
         </section>
       );
     }
@@ -1075,19 +1258,19 @@ function App() {
     if (view.kind === "edit") {
       return (
         <section className="px-6 py-5">
-          <h2 className="mb-4 text-base font-semibold">Edit rule</h2>
-          <RuleForm
+          <h2 className="mb-4 text-base font-semibold">Edit sieve</h2>
+          <SieveForm
             key={view.index}
             presets={presets}
-            initial={rule}
-            onSubmit={(updated) => void updateRule(view.index, updated)}
-            onCancel={() => setView({ kind: "rule", index: view.index })}
+            initial={sieve}
+            onSubmit={(updated) => void updateSieve(view.index, updated)}
+            onCancel={() => setView({ kind: "sieve", index: view.index })}
           />
         </section>
       );
     }
 
-    return renderRuleDetail(rule, view.index);
+    return renderSieveDetail(sieve, view.index);
   }
 
   return (
@@ -1099,10 +1282,10 @@ function App() {
         <TitleBar />
         <div className="flex min-h-0 flex-1">
           <Sidebar
-            rules={rules}
+            sieves={sieves}
             view={view}
             onSelect={setView}
-            onDelete={(index) => void removeRule(index)}
+            onDelete={(index) => void removeSieve(index)}
           />
 
           <section className="min-w-0 flex-1 divide-y divide-border overflow-y-auto">

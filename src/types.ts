@@ -5,11 +5,30 @@ export type RuleAction =
 
 export type ActionType = RuleAction["type"];
 
-export type MatchCriteria = {
-  extension: string[];
-  name_pattern?: string | null;
-  date_after?: string | null;
-  date_before?: string | null;
+export type ConditionMode = "all" | "any";
+
+export type ConditionProperty = "kind" | "extension" | "name" | "modified";
+
+export type ConditionOperator =
+  | "is"
+  | "is_not"
+  | "matches"
+  | "not_matches"
+  | "after"
+  | "before";
+
+export type SieveCondition = {
+  property: ConditionProperty;
+  operator: ConditionOperator;
+  values: string[];
+};
+
+export type Sieve = {
+  name: string;
+  watched_folders: string[];
+  mode: ConditionMode;
+  conditions: SieveCondition[];
+  actions: RuleAction[];
 };
 
 export type Preset = {
@@ -18,16 +37,8 @@ export type Preset = {
   extensions: string[];
 };
 
-export type Rule = {
-  name: string;
-  watched_folders: string[];
-  kind: string[];
-  match_criteria: MatchCriteria;
-  action: RuleAction;
-};
-
 export type AppConfig = {
-  rules: Rule[];
+  version: number;
 };
 
 export type ActivityEntry = {
@@ -37,7 +48,7 @@ export type ActivityEntry = {
 };
 
 export type View =
-  | { kind: "rule"; index: number }
+  | { kind: "sieve"; index: number }
   | { kind: "edit"; index: number }
   | { kind: "new" }
   | { kind: "activity" }
