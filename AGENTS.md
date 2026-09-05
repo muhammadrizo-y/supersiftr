@@ -20,7 +20,7 @@ Stack:
 
 ## Commands
 
-Run from the repository root (`D:\Muhammadrizo\Code\Rust\file-automation-util`):
+Run from the repository root (`D:\Muhammadrizo\Code\supersiftr`):
 
 ```powershell
 npm run build        # TypeScript check (tsc) + Vite production build (outputs dist/)
