@@ -165,6 +165,8 @@ function Combobox({
   const [highlight, setHighlight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const q = query.trim().toLowerCase();
   const labelFor = (v: string) =>
@@ -189,6 +191,20 @@ function Combobox({
   useEffect(() => {
     setHighlight(0);
   }, [query, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const list = listRef.current;
+    const row = rowRefs.current[highlight];
+    if (!list || !row) return;
+    const rowTop = row.offsetTop;
+    const rowBottom = rowTop + row.offsetHeight;
+    if (rowTop < list.scrollTop) {
+      list.scrollTop = rowTop;
+    } else if (rowBottom > list.scrollTop + list.clientHeight) {
+      list.scrollTop = rowBottom - list.clientHeight;
+    }
+  }, [open, highlight]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -241,6 +257,7 @@ function Combobox({
       return;
     }
     if (e.key === "Enter") {
+      if (!open) return;
       e.preventDefault();
       const hm = Math.min(highlight, rows.length + (showAddRow ? 1 : 0) - 1);
       if (hm < rows.length) {
@@ -260,7 +277,10 @@ function Combobox({
   return (
     <div ref={containerRef} className="relative">
       {showDropdown && (
-        <div className="absolute bottom-full left-0 right-0 z-50 mb-1.5 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md">
+        <div
+          ref={listRef}
+          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+        >
           {rows.length === 0 && !showAddRow && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
           )}
@@ -269,6 +289,9 @@ function Combobox({
             return (
               <div
                 key={row.value}
+                ref={(el) => {
+                  rowRefs.current[i] = el;
+                }}
                 role="option"
                 onMouseEnter={() => setHighlight(i)}
                 onClick={() => toggle(row.value)}
@@ -286,6 +309,9 @@ function Combobox({
           })}
           {showAddRow && (
             <div
+              ref={(el) => {
+                rowRefs.current[rows.length] = el;
+              }}
               role="option"
               onMouseEnter={() => setHighlight(rows.length)}
               onClick={() => addCustom(query)}
