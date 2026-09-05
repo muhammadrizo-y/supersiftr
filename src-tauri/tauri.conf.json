@@ -18,7 +18,8 @@
         "center": true,
         "visible": false,
         "backgroundColor": "#151515",
-        "decorations": false
+        "decorations": false,
+        "generalAutofillEnabled": false
       }
     ],
     "security": {
