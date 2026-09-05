@@ -46,7 +46,7 @@ keep the app running after verifying.
   - `components/Sidebar.tsx` — left nav.
 - `src-tauri/` — Rust backend
   - `src/main.rs` — binary entry (thin).
-  - `src/lib.rs` — `#[tauri::command]`s + app setup (`run()` in `file_automation_util_lib`).
+  - `src/lib.rs` — `#[tauri::command]`s + app setup (`run()` in `supersiftr_lib`).
   - `src/rules.rs` — `Rule`, `MatchCriteria`, `RuleAction`, matching logic (351 lines).
   - `src/actions.rs` — performs the move/copy/rename actions.
   - `src/config.rs` — loads/saves `config.json`.

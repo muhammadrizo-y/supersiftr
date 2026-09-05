@@ -30,7 +30,7 @@ pub fn config_dir() -> Result<PathBuf, ConfigError> {
     let dir = dirs::config_dir()
         .or_else(dirs::home_dir)
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("file-automation-util");
+        .join("supersiftr");
     fs::create_dir_all(&dir)?;
     Ok(dir)
 }

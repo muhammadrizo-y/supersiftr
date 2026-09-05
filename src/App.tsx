@@ -657,7 +657,7 @@ function TitleBar() {
         className="pl-3 text-xs font-semibold text-muted-foreground"
         data-tauri-drag-region
       >
-        File Automation
+        Supersiftr
       </span>
       <div className="flex h-full items-stretch">
         <button

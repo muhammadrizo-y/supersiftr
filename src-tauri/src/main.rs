@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    file_automation_util_lib::run()
+    supersiftr_lib::run()
 }

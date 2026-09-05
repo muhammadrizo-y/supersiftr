@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "file-automation-util",
+  "productName": "supersiftr",
   "version": "0.1.0",
-  "identifier": "com.mhmdrz.file-automation-util",
+  "identifier": "com.mhmdrz.supersiftr",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,11 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "file-automation-util",
+        "title": "Supersiftr",
         "width": 800,
         "height": 600,
         "visible": false,
-        "backgroundColor": "#1a1a1a",
+        "backgroundColor": "#151515",
         "decorations": false
       }
     ],
