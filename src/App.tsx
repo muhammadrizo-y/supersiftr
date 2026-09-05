@@ -284,9 +284,6 @@ function Combobox({
           inputRef.current?.focus();
         }}
       >
-        {selected.length === 0 && !query && (
-          <span className="pl-1 text-muted-foreground">{placeholder}</span>
-        )}
         {selected.map((v) => (
           <span
             key={v}
@@ -316,7 +313,7 @@ function Combobox({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder={selected.length === 0 ? placeholder : ""}
+          placeholder={placeholder}
           className="min-w-15 flex-1 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-muted-foreground"
         />
         <button
