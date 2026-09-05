@@ -26,7 +26,7 @@ function SidebarTab({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex h-9 w-full cursor-pointer items-center gap-2.5 px-3 text-sm font-medium transition-colors",
+        "flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-3 text-sm font-medium transition-colors",
         active
           ? "bg-accent text-accent-foreground"
           : "text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground",
@@ -82,7 +82,7 @@ function Sidebar({
               }
             }}
             className={cn(
-              "group flex w-full cursor-pointer items-center justify-between gap-2 px-2 py-1.5 text-sm transition-colors",
+              "group flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
               view.kind === "rule" && view.index === i
                 ? "bg-accent text-accent-foreground"
                 : "text-foreground hover:bg-accent/60",
@@ -94,7 +94,7 @@ function Sidebar({
                 render={
                   <button
                     type="button"
-                    className="flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                    className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation();
                       onDelete(i);
@@ -113,7 +113,7 @@ function Sidebar({
         )}
       </nav>
 
-      <div className="shrink-0 border-t border-border p-2">
+      <div className="flex shrink-0 flex-col gap-0.5 border-t border-border p-2">
         <SidebarTab
           label="Activity"
           icon={<Activity className="size-4" />}

@@ -300,7 +300,7 @@ function Combobox({
                 e.stopPropagation();
                 removeTag(v);
               }}
-              className="flex cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
+              className="flex cursor-pointer rounded-sm p-0.5 text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
             >
               <X className="size-3" />
             </button>
@@ -317,7 +317,7 @@ function Combobox({
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={selected.length === 0 ? placeholder : ""}
-          className="min-w-[60px] flex-1 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-muted-foreground"
+          className="min-w-15 flex-1 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-muted-foreground"
         />
         <button
           type="button"
@@ -325,7 +325,7 @@ function Combobox({
             e.stopPropagation();
             setOpen((o) => !o);
           }}
-          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
           aria-label={open ? "Close dropdown" : "Open dropdown"}
         >
           {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}

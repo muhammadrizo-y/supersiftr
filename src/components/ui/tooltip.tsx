@@ -48,7 +48,7 @@ function TooltipContent({
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "z-50 inline-flex w-fit max-w-xs items-center gap-1.5 rounded-md bg-neutral-900 px-2 py-1 text-xs font-medium text-neutral-100 shadow-md data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out dark:bg-neutral-100 dark:text-neutral-900",
+            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md bg-background px-3 py-1.5 text-xs text-muted-foreground shadow-md ring-1 ring-inset ring-border/80 has-data-[slot=kbd]:pr-1.5 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm duration-100 ease-linear data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out",
             className
           )}
           {...props}
