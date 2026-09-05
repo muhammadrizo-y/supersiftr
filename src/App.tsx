@@ -21,6 +21,13 @@ import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -559,14 +566,20 @@ function SieveForm({
           <div className="flex items-center justify-between gap-2">
             <p className="flex items-center gap-1.5 text-sm">
               If
-              <select
+              <Select
                 value={form.mode}
-                onChange={(e) => set("mode", e.currentTarget.value as ConditionMode)}
-                className="h-8 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                onValueChange={(value: string | null) =>
+                  set("mode", value as ConditionMode)
+                }
               >
-                <option value="all">all</option>
-                <option value="any">any</option>
-              </select>
+                <SelectTrigger className="h-8 w-[4.5rem] gap-1 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectPopup>
+                  <SelectItem value="all">all</SelectItem>
+                  <SelectItem value="any">any</SelectItem>
+                </SelectPopup>
+              </Select>
               of the conditions are met
             </p>
             <Tooltip>
@@ -604,34 +617,42 @@ function SieveForm({
                   key={i}
                   className="flex items-center gap-2 rounded-lg border border-border p-2"
                 >
-                  <select
+                  <Select
                     value={c.property}
-                    onChange={(e) =>
-                      setConditionProperty(i, e.currentTarget.value as ConditionProperty)
+                    onValueChange={(value: string | null) =>
+                      setConditionProperty(i, value as ConditionProperty)
                     }
-                    className="h-8 shrink-0 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
-                    {PROPERTY_OPTIONS.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
+                    <SelectTrigger className="h-8 w-[8.5rem] shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectPopup>
+                      {PROPERTY_OPTIONS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectPopup>
+                  </Select>
+                  <Select
                     value={c.operator}
-                    onChange={(e) =>
+                    onValueChange={(value: string | null) =>
                       updateCondition(i, {
-                        operator: e.currentTarget.value as ConditionOperator,
+                        operator: value as ConditionOperator,
                       })
                     }
-                    className="h-8 shrink-0 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
-                    {OPERATOR_OPTIONS[c.property].map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="h-8 w-32 shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectPopup>
+                      {OPERATOR_OPTIONS[c.property].map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectPopup>
+                  </Select>
                   <div className="min-w-0 flex-1">
                     {c.property === "kind" && (
                       <Combobox
@@ -736,17 +757,23 @@ function SieveForm({
                   key={i}
                   className="flex items-center gap-2 rounded-lg border border-border p-2"
                 >
-                  <select
+                  <Select
                     value={a.type}
-                    onChange={(e) => setActionType(i, e.currentTarget.value as ActionType)}
-                    className="h-8 shrink-0 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    onValueChange={(value: string | null) =>
+                      setActionType(i, value as ActionType)
+                    }
                   >
-                    {ACTION_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="h-8 w-28 shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectPopup>
+                      {ACTION_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectPopup>
+                  </Select>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {a.type === "rename" ? "with pattern:" : "to folder:"}
                   </span>
