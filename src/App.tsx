@@ -11,11 +11,14 @@ import {
   Minus,
   Pencil,
   Plus,
-  Square,
   Trash2,
   TriangleAlert,
   X,
 } from "lucide-react";
+
+import closeIcon from "@/assets/close.svg?raw";
+import maximizeIcon from "@/assets/maximize.svg?raw";
+import minimizeIcon from "@/assets/minimize.svg?raw";
 
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -335,7 +338,7 @@ function Combobox({
       )}
 
       <div
-        className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/40 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
+        className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/40 focus-within:border-ring focus-within:outline-3 focus-within:outline-ring/50"
         onClick={() => {
           setOpen(true);
           inputRef.current?.focus();
@@ -558,12 +561,12 @@ function SieveForm({
                     render={
                       <Button
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
-                        className="size-7 shrink-0"
+                        className="size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => removeWatchedFolder(folder)}
                       >
-                        <X className="size-3.5" />
+                        <Minus className="size-3.5" />
                       </Button>
                     }
                   />
@@ -598,7 +601,7 @@ function SieveForm({
                   set("mode", value as ConditionMode)
                 }
               >
-                <SelectTrigger className="h-8 w-[4.5rem] gap-1 text-sm">
+                <SelectTrigger className="h-8 w-18 gap-1 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectPopup>
@@ -649,7 +652,7 @@ function SieveForm({
                       setConditionProperty(i, value as ConditionProperty)
                     }
                   >
-                    <SelectTrigger className="h-8 w-[8.5rem] shrink-0">
+                    <SelectTrigger className="h-8 w-34 shrink-0">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectPopup>
@@ -723,12 +726,12 @@ function SieveForm({
                       render={
                         <Button
                           type="button"
-                          variant="ghost"
+                          variant="outline"
                           size="icon"
                           className="size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => removeCondition(i)}
                         >
-                          <X className="size-3.5" />
+                          <Minus className="size-3.5" />
                         </Button>
                       }
                     />
@@ -838,12 +841,12 @@ function SieveForm({
                       render={
                         <Button
                           type="button"
-                          variant="ghost"
+                          variant="outline"
                           size="icon"
                           className="size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => removeAction(i)}
                         >
-                          <X className="size-3.5" />
+                          <Minus className="size-3.5" />
                         </Button>
                       }
                     />
@@ -907,6 +910,20 @@ function describeActions(actions: RuleAction[]): string {
   return actions.map(describeAction).join("; then ");
 }
 
+function FluentIcon({ svg, className }: { svg: string; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn(className)}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{
+        __html: svg.replace(/fill="#212121"/g, 'fill="currentColor"'),
+      }}
+    />
+  );
+}
+
 function WindowControls() {
   const appWindow = getCurrentWindow();
 
@@ -918,7 +935,7 @@ function WindowControls() {
         onClick={() => appWindow.minimize()}
         className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
       >
-        <Minus className="size-3" />
+        <FluentIcon svg={minimizeIcon} className="size-3.5" />
       </button>
       <button
         type="button"
@@ -926,7 +943,7 @@ function WindowControls() {
         onClick={() => appWindow.toggleMaximize()}
         className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
       >
-        <Square className="size-2.5" />
+        <FluentIcon svg={maximizeIcon} className="size-3" />
       </button>
       <button
         type="button"
@@ -934,7 +951,7 @@ function WindowControls() {
         onClick={() => appWindow.close()}
         className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-[#c42b1c] hover:text-white"
       >
-        <X className="size-3" />
+        <FluentIcon svg={closeIcon} className="size-3.5" />
       </button>
     </div>
   );
