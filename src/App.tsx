@@ -907,47 +907,36 @@ function describeActions(actions: RuleAction[]): string {
   return actions.map(describeAction).join("; then ");
 }
 
-function TitleBar() {
+function WindowControls() {
   const appWindow = getCurrentWindow();
 
   return (
-    <header
-      className="flex h-8 shrink-0 items-center justify-between bg-card"
-      data-tauri-drag-region
-    >
-      <span
-        className="pl-3 text-xs font-semibold text-muted-foreground"
-        data-tauri-drag-region
+    <div className="flex h-full items-stretch">
+      <button
+        type="button"
+        title="Minimize"
+        onClick={() => appWindow.minimize()}
+        className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
       >
-        Supersiftr
-      </span>
-      <div className="flex h-full items-stretch">
-        <button
-          type="button"
-          title="Minimize"
-          onClick={() => appWindow.minimize()}
-          className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
-        >
-          <Minus className="size-3" />
-        </button>
-        <button
-          type="button"
-          title="Maximize"
-          onClick={() => appWindow.toggleMaximize()}
-          className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
-        >
-          <Square className="size-2.5" />
-        </button>
-        <button
-          type="button"
-          title="Close"
-          onClick={() => appWindow.close()}
-          className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-[#c42b1c] hover:text-white"
-        >
-          <X className="size-3" />
-        </button>
-      </div>
-    </header>
+        <Minus className="size-3" />
+      </button>
+      <button
+        type="button"
+        title="Maximize"
+        onClick={() => appWindow.toggleMaximize()}
+        className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
+      >
+        <Square className="size-2.5" />
+      </button>
+      <button
+        type="button"
+        title="Close"
+        onClick={() => appWindow.close()}
+        className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-[#c42b1c] hover:text-white"
+      >
+        <X className="size-3" />
+      </button>
+    </div>
   );
 }
 
@@ -1329,18 +1318,25 @@ function App() {
   return (
     <TooltipProvider>
       <div
-        className="flex h-full select-none flex-col overflow-hidden"
+        className="flex h-full select-none overflow-hidden"
         onContextMenu={(e) => e.preventDefault()}
       >
-        <TitleBar />
-        <div className="flex min-h-0 flex-1">
-          <Sidebar
-            sieves={sieves}
-            view={view}
-            onSelect={setView}
-            onDelete={(index) => void removeSieve(index)}
-          />
+        <Sidebar
+          sieves={sieves}
+          view={view}
+          onSelect={setView}
+          onDelete={(index) => void removeSieve(index)}
+        />
 
+        <div className="flex min-w-0 flex-1 flex-col bg-card">
+          <div
+            className="flex h-9 shrink-0 items-center justify-end"
+            data-tauri-drag-region
+          >
+            <div className="h-full" data-tauri-drag-region>
+              <WindowControls />
+            </div>
+          </div>
           <section className="min-w-0 flex-1 divide-y divide-border overflow-y-auto">
             {renderMain()}
           </section>
