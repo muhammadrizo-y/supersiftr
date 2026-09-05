@@ -5,17 +5,18 @@ Guidance for AI coding agents working in this repository.
 ## Project overview
 
 A **Tauri v2** desktop app for Windows (also macOS/Linux compatible) that automates
-file organization. Users define **rules**: when a file matching certain criteria
-appears in one of the watched folders, the app moves/copies/renames it or triggers
-a preset. A background `notify` watcher reacts to new/changed files.
+file organization. Users define **sieves**: when a file matching certain
+conditions appears in one of the watched folders, the app runs a list of actions
+(move/copy/rename) or triggers a preset. A background `notify` watcher reacts to
+new/changed files.
 
 Stack:
 - **Frontend**: React 19 + TypeScript + Vite 7, Tailwind CSS v4, shadcn/ui CLI with
   **Base UI** (`@base-ui/react`) components, Lucide icons, sonner toasts.
 - **Backend**: Rust (Tauri v2), `notify`/`notify-debouncer-mini` file watching,
   `glob` pattern matching, `chrono` dates, `serde` JSON config persistence.
-- **State**: config (`rules`) and `presets` are read/written as JSON on disk by the
-  Rust backend; the UI calls `#[tauri::command]`s exposed over IPC.
+- **State**: `sieves`, `presets`, and settings are read/written as JSON on disk by
+  the Rust backend; the UI calls `#[tauri::command]`s exposed over IPC.
 
 ## Commands
 
@@ -34,10 +35,10 @@ keep the app running after verifying.
 ## Project layout
 
 - `src/` — React frontend
-  - `App.tsx` — the whole app UI (title bar, sidebar, rule list/detail, forms,
+  - `App.tsx` — the whole app UI (title bar, sidebar, sieve list/detail, forms,
     settings, activity log) plus the custom multi-select `Combobox`.
-  - `types.ts` — shared TS types mirroring the Rust domain (`Rule`, `Preset`,
-    `RuleAction`, `MatchCriteria`, `AppConfig`, `View`).
+  - `types.ts` — shared TS types mirroring the Rust domain (`Sieve`, `Preset`,
+    `RuleAction`, `SieveCondition`, `AppConfig`, `View`).
   - `main.tsx` — entry; syncs window background with `prefers-color-scheme` and
     shows the window after mount.
   - `components/ui/` — shadcn/Base UI primitives (button, badge, card, calendar,
@@ -47,11 +48,11 @@ keep the app running after verifying.
 - `src-tauri/` — Rust backend
   - `src/main.rs` — binary entry (thin).
   - `src/lib.rs` — `#[tauri::command]`s + app setup (`run()` in `supersiftr_lib`).
-  - `src/rules.rs` — `Rule`, `MatchCriteria`, `RuleAction`, matching logic (351 lines).
+  - `src/sieves.rs` — `Sieve`, `SieveCondition`, `RuleAction`, matching logic.
   - `src/actions.rs` — performs the move/copy/rename actions.
-  - `src/config.rs` — loads/saves `config.json`.
+  - `src/config.rs` — loads/saves `config.json` (settings only).
   - `src/presets.rs` — "kind" presets (named extension sets).
-  - `src/state.rs` — `AppState` (mutex-guarded watcher/config/presets/log) + reload.
+  - `src/state.rs` — `AppState` (mutex-guarded watcher/sieves/presets/log) + reload.
   - `src/watcher.rs` — `FileWatcher`, debounced recursive + single-file watching.
   - `src/logging.rs` — activity log persisted to disk.
   - `capabilities/default.json` — Tauri permissions for the main window.
@@ -60,22 +61,35 @@ keep the app running after verifying.
 ## Architecture / data flow
 
 - The Rust side owns persistence and file watching. `AppState` holds a
-  `Mutex<FileWatcher>`, `Mutex<AppConfig>`, `Mutex<PresetStore>`, and `ActivityLog`.
-- The frontend fetches config/presets via commands and sends rule mutations
-  (`add_rule`, `remove_rule`, `update_rule`), which save to disk and then restart
-  the watchers so the new rules take effect immediately.
-- When a watched file event fires, the backend matches it against the rules and
-  performs the action, logging an activity entry.
-- `View` in `types.ts` drives what content area is shown: rule detail, edit form,
-  new rule form, activity log, or settings.
+  `Mutex<FileWatcher>`, `Mutex<SieveStore>`, `Mutex<PresetStore>`, and `ActivityLog`.
+- The frontend fetches sieves/presets/settings via commands and sends sieve
+  mutations (`add_sieve`, `remove_sieve`, `update_sieve`), which save to disk and
+  then restart the watchers so the new sieves take effect immediately. Sieves are
+  also hot-reloaded when `sieves.json` changes on disk (the watcher watches it).
+- When a watched file event fires, the backend matches it against the sieves and
+  performs the actions in order, logging an activity entry.
+- `View` in `types.ts` drives what content area is shown: sieve detail, edit form,
+  new sieve form, activity log, or settings.
 
-### Key conventions for new rules/actions
+### Key conventions for new sieves/actions
+- `Sieve` is `{ name, watched_folders, mode: all|any, conditions, actions }`.
+  `SieveCondition` is `{ property: kind|extension|name|modified, operator, values }`:
+  kind/extension use `is`/`is_not`; name uses `matches`/`not_matches`; modified uses
+  `after`/`before`. Kind values are preset ids; extension/name values are lists;
+  modified uses a single YYYY-MM-DD in `values[0]`.
 - `RuleAction` is a tagged enum serialized to `{ "type": "move" | "copy" | "rename",
-  ... }`. Match criteria are extension (list), optional `name_pattern` (glob),
-  optional `date_after`/`date_before` (YYYY-MM-DD strings).
+  ... }` with `destination` or `pattern`; rename patterns can contain `{name}`.
 - Kind ids reference presets by name (kebab-case); a missing preset contributes no
-  extensions but doesn't break the rule (`Rule::missing_kinds`).
-- Rules are evaluated in order; `Rule::applies_to` checks `watched_folders`.
+  extensions for `is` but matches everything for `is_not` and doesn't break the
+  sieve (`Sieve::missing_kinds`).
+- Sieves are evaluated in order; `Sieve::applies_to` checks `watched_folders`.
+  Empty conditions never match; `Sieve::is_runnable` requires >=1 condition and
+  >=1 action.
+- Versioning: each JSON file (`config.json`, `sieves.json`, `presets.json`) carries
+  an integer `"version"` field (independent of the app version) that only bumps on
+  schema breaks. Loading is tolerant: missing/unknown versions are treated as
+  latest. The watcher watching `sieves.json` requires it to exist — `sieves::load`
+  persists a default store on first run.
 
 ## Windows / window management
 
