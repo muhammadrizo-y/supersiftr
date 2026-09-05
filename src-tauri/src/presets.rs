@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::config::config_dir;
+use crate::config::{config_dir, SCHEMA_VERSION};
 
 #[derive(Debug, Error)]
 pub enum PresetError {
@@ -32,21 +32,24 @@ pub struct Preset {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PresetStore {
-    #[serde(default)]
+    pub version: u32,
     pub presets: Vec<Preset>,
 }
 
 impl Default for PresetStore {
     fn default() -> Self {
-        Self::defaults()
+        Self {
+            version: SCHEMA_VERSION,
+            presets: Self::defaults_presets(),
+        }
     }
 }
 
 impl PresetStore {
-    pub fn defaults() -> Self {
-        Self {
-            presets: vec![
+    pub fn defaults_presets() -> Vec<Preset> {
+        vec![
                 Preset {
                     name: "movie".into(),
                     title: "Movie".into(),
@@ -96,8 +99,7 @@ impl PresetStore {
                         .map(String::from)
                         .collect(),
                 },
-            ],
-        }
+            ]
     }
 }
 
@@ -108,7 +110,7 @@ pub fn presets_path() -> Result<PathBuf, PresetError> {
 pub fn load() -> Result<PresetStore, PresetError> {
     let path = presets_path()?;
     if !path.exists() {
-        let store = PresetStore::defaults();
+        let store = PresetStore::default();
         let _ = save(&store);
         return Ok(store);
     }
@@ -129,18 +131,23 @@ mod tests {
 
     #[test]
     fn defaults_are_unique() {
-        let store = PresetStore::defaults();
+        let store = PresetStore::default();
         let mut names: Vec<&str> = store.presets.iter().map(|p| p.name.as_str()).collect();
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), store.presets.len());
+        assert_eq!(store.version, SCHEMA_VERSION);
     }
 
     #[test]
     fn completed_empty_roundtrip() {
-        let store = PresetStore { presets: Vec::new() };
+        let store = PresetStore {
+            version: SCHEMA_VERSION,
+            presets: Vec::new(),
+        };
         let json = serde_json::to_string(&store).unwrap();
         let back: PresetStore = serde_json::from_str(&json).unwrap();
         assert!(back.presets.is_empty());
+        assert_eq!(back.version, SCHEMA_VERSION);
     }
 }

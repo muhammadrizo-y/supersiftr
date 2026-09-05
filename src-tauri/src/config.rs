@@ -4,17 +4,22 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::rules::Rule;
+/// Current schema version for every versioned JSON file this app persists.
+/// Bump when a file's shape breaks; loading is tolerant (missing version is
+/// assumed to be the latest) since the app is still in beta.
+pub const SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppConfig {
-    #[serde(default)]
-    pub rules: Vec<Rule>,
+    pub version: u32,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
-        Self { rules: Vec::new() }
+        Self {
+            version: SCHEMA_VERSION,
+        }
     }
 }
 
@@ -22,7 +27,7 @@ impl Default for AppConfig {
 pub enum ConfigError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Invalid config JSON: {0}")]
+    #[error("Invalid JSON: {0}")]
     Json(#[from] serde_json::Error),
 }
 
@@ -42,13 +47,10 @@ pub fn config_path() -> Result<PathBuf, ConfigError> {
 pub fn load() -> Result<AppConfig, ConfigError> {
     let path = config_path()?;
     if !path.exists() {
-        let config = AppConfig::default();
-        save(&config)?;
-        return Ok(config);
+        return Ok(AppConfig::default());
     }
     let contents = fs::read_to_string(path)?;
-    let config = serde_json::from_str(&contents)?;
-    Ok(config)
+    Ok(serde_json::from_str(&contents)?)
 }
 
 pub fn save(config: &AppConfig) -> Result<(), ConfigError> {
@@ -63,28 +65,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_config_is_empty() {
+    fn default_config_has_current_version() {
         let config = AppConfig::default();
-        assert!(config.rules.is_empty());
+        assert_eq!(config.version, SCHEMA_VERSION);
     }
 
     #[test]
     fn roundtrip_serialization() {
-        let config = AppConfig {
-            rules: vec![Rule {
-                name: "PDFs".into(),
-                watched_folders: vec!["C:/Downloads".into()],
-                kind: vec![],
-                match_criteria: Default::default(),
-                action: crate::rules::RuleAction::Move {
-                    destination: "C:/Documents".into(),
-                },
-            }],
-        };
+        let config = AppConfig::default();
         let json = serde_json::to_string(&config).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.rules.len(), 1);
-        assert_eq!(back.rules[0].name, "PDFs");
-        assert_eq!(back.rules[0].watched_folders, vec!["C:/Downloads"]);
+        assert_eq!(back.version, SCHEMA_VERSION);
     }
 }

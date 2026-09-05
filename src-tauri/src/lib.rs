@@ -2,7 +2,7 @@ pub mod actions;
 pub mod config;
 pub mod logging;
 pub mod presets;
-pub mod rules;
+pub mod sieves;
 pub mod state;
 pub mod watcher;
 
@@ -10,7 +10,7 @@ use tauri::{Manager, State, WindowEvent};
 
 use crate::config::AppConfig;
 use crate::presets::Preset;
-use crate::rules::Rule;
+use crate::sieves::Sieve;
 use crate::state::AppState;
 
 #[tauri::command]
@@ -28,51 +28,54 @@ fn get_config(state: State<'_, AppState>) -> AppConfig {
 }
 
 #[tauri::command]
-fn add_rule(rule: Rule, app: tauri::AppHandle) -> Result<Vec<Rule>, String> {
+fn add_sieve(sieve: Sieve, app: tauri::AppHandle) -> Result<Vec<Sieve>, String> {
     {
         let state = app.state::<AppState>();
-        let mut cfg = state.config.lock().unwrap();
-        cfg.rules.push(rule);
-        config::save(&cfg).map_err(|e| e.to_string())?;
-    }
-    Ok(get_rules(app.state::<AppState>()))
-}
-
-#[tauri::command]
-fn remove_rule(index: usize, app: tauri::AppHandle) -> Result<Vec<Rule>, String> {
-    {
-        let state = app.state::<AppState>();
-        let mut cfg = state.config.lock().unwrap();
-        if index >= cfg.rules.len() {
-            return Err("Rule index out of bounds".into());
-        }
-        cfg.rules.remove(index);
-        config::save(&cfg).map_err(|e| e.to_string())?;
-    }
-    Ok(get_rules(app.state::<AppState>()))
-}
-
-#[tauri::command]
-fn update_rule(
-    index: usize,
-    rule: Rule,
-    app: tauri::AppHandle,
-) -> Result<Vec<Rule>, String> {
-    {
-        let state = app.state::<AppState>();
-        let mut cfg = state.config.lock().unwrap();
-        if index >= cfg.rules.len() {
-            return Err("Rule index out of bounds".into());
-        }
-        cfg.rules[index] = rule;
-        config::save(&cfg).map_err(|e| e.to_string())?;
+        let mut store = state.sieves.lock().unwrap();
+        store.sieves.push(sieve);
+        sieves::save(&store).map_err(|e| e.to_string())?;
     }
     AppState::restart_watchers(&app).map_err(|e| e.to_string())?;
-    Ok(get_rules(app.state::<AppState>()))
+    Ok(get_sieves(app.state::<AppState>()))
 }
 
-fn get_rules(state: State<'_, AppState>) -> Vec<Rule> {
-    state.config.lock().unwrap().rules.clone()
+#[tauri::command]
+fn remove_sieve(index: usize, app: tauri::AppHandle) -> Result<Vec<Sieve>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.sieves.lock().unwrap();
+        if index >= store.sieves.len() {
+            return Err("Sieve index out of bounds".into());
+        }
+        store.sieves.remove(index);
+        sieves::save(&store).map_err(|e| e.to_string())?;
+    }
+    AppState::restart_watchers(&app).map_err(|e| e.to_string())?;
+    Ok(get_sieves(app.state::<AppState>()))
+}
+
+#[tauri::command]
+fn update_sieve(
+    index: usize,
+    sieve: Sieve,
+    app: tauri::AppHandle,
+) -> Result<Vec<Sieve>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.sieves.lock().unwrap();
+        if index >= store.sieves.len() {
+            return Err("Sieve index out of bounds".into());
+        }
+        store.sieves[index] = sieve;
+        sieves::save(&store).map_err(|e| e.to_string())?;
+    }
+    AppState::restart_watchers(&app).map_err(|e| e.to_string())?;
+    Ok(get_sieves(app.state::<AppState>()))
+}
+
+#[tauri::command]
+fn get_sieves(state: State<'_, AppState>) -> Vec<Sieve> {
+    state.sieves.lock().unwrap().sieves.clone()
 }
 
 fn get_preset_list(state: State<'_, AppState>) -> Vec<Preset> {
@@ -185,9 +188,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             set_window_background,
             get_config,
-            add_rule,
-            remove_rule,
-            update_rule,
+            get_sieves,
+            add_sieve,
+            remove_sieve,
+            update_sieve,
             get_logs,
             get_log_path,
             get_presets,

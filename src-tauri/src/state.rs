@@ -6,12 +6,13 @@ use crate::actions;
 use crate::config::{self, AppConfig};
 use crate::logging::ActivityLog;
 use crate::presets::{self, PresetStore};
-use crate::rules::{Rule, RuleAction};
+use crate::sieves::{self, RuleAction, Sieve, SieveStore};
 use crate::watcher::FileWatcher;
 
 pub struct AppState {
     pub watcher: Mutex<FileWatcher>,
     pub config: Mutex<AppConfig>,
+    pub sieves: Mutex<SieveStore>,
     pub presets: Mutex<PresetStore>,
     pub log: ActivityLog,
 }
@@ -22,18 +23,19 @@ impl AppState {
         Self {
             watcher: Mutex::new(FileWatcher::new()),
             config: Mutex::new(config::load().unwrap_or_default()),
+            sieves: Mutex::new(sieves::load().unwrap_or_default()),
             presets: Mutex::new(presets::load().unwrap_or_default()),
             log: ActivityLog::new(config_dir),
         }
     }
 
-    /// Reloads the persisted config into state, then restarts watchers.
+    /// Reloads the persisted sieves into state, then restarts watchers.
     pub fn reload(app: &tauri::AppHandle) -> Result<(), String> {
         let state = app.state::<AppState>();
-        let loaded = config::load().map_err(|e| e.to_string())?;
+        let loaded = sieves::load().map_err(|e| e.to_string())?;
         {
-            let mut cfg = state.config.lock().unwrap();
-            *cfg = loaded;
+            let mut sieves = state.sieves.lock().unwrap();
+            *sieves = loaded;
         }
         Self::restart_watchers(app)
     }
@@ -42,8 +44,8 @@ impl AppState {
         let state = app.state::<AppState>();
 
         let folders: Vec<String> = {
-            let cfg = state.config.lock().unwrap();
-            collect_watch_folders(&cfg.rules)
+            let sieves = state.sieves.lock().unwrap();
+            collect_watch_folders(&sieves.sieves)
         };
 
         {
@@ -56,9 +58,9 @@ impl AppState {
                 })?;
             }
 
-            // Hot-reload the config file: any edit restarts watchers against
-            // the freshly loaded config.
-            if let Ok(path) = config::config_path() {
+            // Hot-reload the sieves file: any edit restarts watchers against
+            // the freshly loaded sieves.
+            if let Ok(path) = sieves::sieves_path() {
                 let app = app.clone();
                 watcher.watch_file(path, move || {
                     let _ = Self::reload(&app);
@@ -68,60 +70,62 @@ impl AppState {
         Ok(())
     }
 
-    /// Applies rules to `path`. Called from the watcher thread on every event.
+    /// Applies sieves to `path`. Called from the watcher thread on every event.
     /// Skips files that no longer exist (already handled by a prior event).
     pub fn process(app: tauri::AppHandle, path: std::path::PathBuf) {
         let state = app.state::<AppState>();
-        let (rules, presets) = {
-            let cfg = state.config.lock().unwrap();
+        let (sieves, presets) = {
+            let sieves = state.sieves.lock().unwrap();
             let presets = state.presets.lock().unwrap();
-            (cfg.rules.clone(), presets.presets.clone())
+            (sieves.sieves.clone(), presets.presets.clone())
         };
 
         if !path.is_file() {
             return;
         }
 
-        for rule in &rules {
-            if !rule.applies_to(&path) {
+        for sieve in &sieves {
+            if !sieve.applies_to(&path) {
                 continue;
             }
-            if !rule.is_runnable(&presets) {
+            if !sieve.is_runnable() {
                 continue;
             }
-            if rule.matches(&path, &presets) {
-                match actions::execute(&path, &rule.action) {
-                    Ok(dest) => {
-                        let verb = action_verb(&rule.action);
-                        state.log.write(
-                            &app,
-                            "info",
-                            &format!(
-                                "[{}] {verb} \"{}\" -> \"{}\"",
-                                rule.name,
-                                path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
-                                dest.to_string_lossy(),
-                            ),
-                        );
-                    }
-                    Err(actions::ActionError::SourceNotFound(_)) => {
-                        // The file was already moved by an earlier duplicate
-                        // event; not an error, so just ignore it.
-                    }
-                    Err(e) => {
-                        let mut error = e.to_string();
-                        // Trim the redundant path prefix.
-                        if let Some(pos) = error.find(": ") {
-                            let shorthand = &error[pos + 2..];
-                            if !shorthand.is_empty() {
-                                error = shorthand.to_string();
-                            }
+            if sieve.matches(&path, &presets) {
+                for action in &sieve.actions {
+                    match actions::execute(&path, action) {
+                        Ok(dest) => {
+                            let verb = action_verb(action);
+                            state.log.write(
+                                &app,
+                                "info",
+                                &format!(
+                                    "[{}] {verb} \"{}\" -> \"{}\"",
+                                    sieve.name,
+                                    path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+                                    dest.to_string_lossy(),
+                                ),
+                            );
                         }
-                        state.log.write(
-                            &app,
-                            "error",
-                            &format!("[{}] \"{}\": {error}", rule.name, path.to_string_lossy()),
-                        );
+                        Err(actions::ActionError::SourceNotFound(_)) => {
+                            // The file was already moved by an earlier duplicate
+                            // event; not an error, so just ignore it.
+                        }
+                        Err(e) => {
+                            let mut error = e.to_string();
+                            // Trim the redundant path prefix.
+                            if let Some(pos) = error.find(": ") {
+                                let shorthand = &error[pos + 2..];
+                                if !shorthand.is_empty() {
+                                    error = shorthand.to_string();
+                                }
+                            }
+                            state.log.write(
+                                &app,
+                                "error",
+                                &format!("[{}] \"{}\": {error}", sieve.name, path.to_string_lossy()),
+                            );
+                        }
                     }
                 }
                 break;
@@ -138,11 +142,11 @@ fn action_verb(action: &RuleAction) -> &'static str {
     }
 }
 
-/// Returns the deduplicated set of folders watched across all rules.
-fn collect_watch_folders(rules: &[Rule]) -> Vec<String> {
+/// Returns the deduplicated set of folders watched across all sieves.
+fn collect_watch_folders(sieves: &[Sieve]) -> Vec<String> {
     let mut folders: Vec<String> = Vec::new();
-    for rule in rules {
-        for folder in &rule.watched_folders {
+    for sieve in sieves {
+        for folder in &sieve.watched_folders {
             if !folders.contains(folder) {
                 folders.push(folder.clone());
             }
