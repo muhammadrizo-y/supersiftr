@@ -51,8 +51,13 @@ function Sidebar({
 }) {
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-background">
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
-        <h1 className="px-1 text-sm font-semibold">Sieves</h1>
+      <header
+        className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3"
+        data-tauri-drag-region
+      >
+        <h1 className="px-1 text-sm font-semibold" data-tauri-drag-region>
+          Sieves
+        </h1>
         <Tooltip>
           <TooltipTrigger
             render={
