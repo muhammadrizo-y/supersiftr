@@ -1049,13 +1049,13 @@ function SettingsTab({
   return (
     <section className="px-6 py-5">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-base font-semibold">Kind presets</h2>
+        <h2 className="text-2xl font-semibold">Kinds</h2>
         <Button size="sm" variant="outline" onClick={() => setEditing("new")}>
           <Plus className="size-3.5" /> Add preset
         </Button>
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
-        Kind presets group extensions under a reusable kind. Sieves reference
+        Kinds group extensions under a reusable kind. Sieves reference
         kinds by id, so renaming a title updates every sieve automatically.
       </p>
 
@@ -1073,7 +1073,7 @@ function SettingsTab({
       )}
 
       {presets.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No kind presets yet.</p>
+        <p className="text-sm text-muted-foreground">No kinds yet.</p>
       ) : (
         <ul className="space-y-2">
           {presets.map((p) => (
@@ -1215,7 +1215,7 @@ function App() {
           </div>
         )}
         <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold">{sieve.name}</h2>
+          <h2 className="text-2xl font-semibold">{sieve.name}</h2>
           <Tooltip>
             <TooltipTrigger
               render={
@@ -1255,7 +1255,7 @@ function App() {
     if (view.kind === "new") {
       return (
         <section className="px-6 py-5">
-          <h2 className="mb-4 text-base font-semibold">New sieve</h2>
+          <h2 className="mb-4 text-2xl font-semibold">New sieve</h2>
           <SieveForm
             presets={presets}
             onSubmit={addSieve}
@@ -1272,7 +1272,7 @@ function App() {
     if (view.kind === "activity") {
       return (
         <section className="px-6 py-5">
-          <h2 className="mb-4 text-base font-semibold">Activity</h2>
+          <h2 className="mb-4 text-2xl font-semibold">Activity</h2>
           {activity.length === 0 ? (
             <p className="text-sm text-muted-foreground">No activity yet.</p>
           ) : (
@@ -1320,7 +1320,7 @@ function App() {
     if (view.kind === "edit") {
       return (
         <section className="px-6 py-5">
-          <h2 className="mb-4 text-base font-semibold">Edit sieve</h2>
+          <h2 className="mb-4 text-2xl font-semibold">Edit sieve</h2>
           <SieveForm
             key={view.index}
             presets={presets}
