@@ -6,9 +6,9 @@ pub mod sieves;
 pub mod state;
 pub mod watcher;
 
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{Manager, State, WindowEvent};
+use tauri::{Emitter, Manager, State, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::config::AppConfig;
@@ -82,9 +82,26 @@ fn set_tray_enabled(app: &tauri::AppHandle, enabled: bool) -> Result<(), String>
 fn build_tray(app: &tauri::AppHandle) -> Result<tauri::tray::TrayIcon, String> {
     let open_item =
         MenuItem::with_id(app, "open", "Open Supersiftr", true, None::<&str>).map_err(|e| e.to_string())?;
+    let separator =
+        PredefinedMenuItem::separator(app).map_err(|e| e.to_string())?;
+    let version = app.package_info().version.clone();
+    let version_item = MenuItem::with_id(
+        app,
+        "version",
+        format!("Version: {version}"),
+        false,
+        None::<&str>,
+    )
+    .map_err(|e| e.to_string())?;
+    let settings_item = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
     let quit_item =
         MenuItem::with_id(app, "quit", "Quit", true, None::<&str>).map_err(|e| e.to_string())?;
-    let menu = Menu::with_items(app, &[&open_item, &quit_item]).map_err(|e| e.to_string())?;
+    let menu = Menu::with_items(
+        app,
+        &[&open_item, &separator, &version_item, &settings_item, &separator, &quit_item],
+    )
+    .map_err(|e| e.to_string())?;
 
     TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
@@ -107,18 +124,24 @@ fn build_tray(app: &tauri::AppHandle) -> Result<tauri::tray::TrayIcon, String> {
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "open" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.unminimize();
-                    let _ = window.set_focus();
-                }
+            "open" => show_main_window(app),
+            "settings" => {
+                let _ = app.emit("show-settings", ());
+                show_main_window(app);
             }
             "quit" => app.exit(0),
             _ => {}
         })
         .build(app)
         .map_err(|e| e.to_string())
+}
+
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
 }
 
 fn attach_close_behavior(window: &tauri::WebviewWindow) {

@@ -1097,7 +1097,7 @@ function SettingsTab({
           <div>
             <p className="text-sm font-medium">Run at Startup</p>
             <p className="text-xs text-muted-foreground">
-              Start Supersiftr automatically when you sign in to Windows.
+              Launch Supersiftr automatically.
             </p>
           </div>
           <Switch
@@ -1237,8 +1237,11 @@ function App() {
       log(e.payload.message, e.payload.level === "error" ? "error" : "info");
     });
 
+    const unlistenSettings = listen("show-settings", () => setView({ kind: "settings" }));
+
     return () => {
       unlistenLog.then((f) => f());
+      unlistenSettings.then((f) => f());
     };
   }, [log]);
 
