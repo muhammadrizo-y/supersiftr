@@ -85,7 +85,7 @@ keep the app running after verifying.
 - Sieves are evaluated in order; `Sieve::applies_to` checks `watched_folders`.
   Empty conditions never match; `Sieve::is_runnable` requires >=1 condition and
   >=1 action.
-- Versioning: each JSON file (`config.json`, `sieves.json`, `presets.json`) carries
+- Versioning: each JSON file (`config.json`, `sieves.json`, `kinds.json`) carries
   an integer `"version"` field (independent of the app version) that only bumps on
   schema breaks. Loading is tolerant: missing/unknown versions are treated as
   latest. The watcher watching `sieves.json` requires it to exist — `sieves::load`

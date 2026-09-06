@@ -10,7 +10,7 @@ use crate::config::{config_dir, SCHEMA_VERSION};
 pub enum PresetError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Invalid presets JSON: {0}")]
+    #[error("Invalid kinds JSON: {0}")]
     Json(#[from] serde_json::Error),
     #[error("Config error: {0}")]
     Config(#[from] crate::config::ConfigError),
@@ -104,7 +104,7 @@ impl PresetStore {
 }
 
 pub fn presets_path() -> Result<PathBuf, PresetError> {
-    Ok(config_dir()?.join("presets.json"))
+    Ok(config_dir()?.join("kinds.json"))
 }
 
 pub fn load() -> Result<PresetStore, PresetError> {
