@@ -574,7 +574,7 @@ function SieveForm({
                       </Button>
                     }
                   />
-                  <TooltipContent>Remove {folder}</TooltipContent>
+                  <TooltipContent>Remove folder</TooltipContent>
                 </Tooltip>
               </li>
             ))}

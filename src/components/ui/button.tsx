@@ -53,7 +53,7 @@ function Button({
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     >
-      <span className="flex items-center leading-none [gap:inherit]">{children}</span>
+      <span className="flex items-center leading-none gap-[inherit]">{children}</span>
     </ButtonPrimitive>
   )
 }
