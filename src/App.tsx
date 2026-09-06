@@ -11,7 +11,6 @@ import {
 import {
   ChevronDown,
   ChevronUp,
-  Circle,
   Folder,
   Minus,
   Pencil,
@@ -314,7 +313,6 @@ function Combobox({
                     : "text-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
               >
-                <Circle className="size-4 shrink-0 text-muted-foreground" />
                 {row.label}
               </div>
             );
