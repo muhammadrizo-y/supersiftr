@@ -15,6 +15,8 @@
         "title": "Supersiftr",
         "width": 1200,
         "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
         "center": true,
         "visible": false,
         "backgroundColor": "#151515",
