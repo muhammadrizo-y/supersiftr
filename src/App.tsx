@@ -1108,8 +1108,9 @@ function SettingsTab({
         </Button>
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
-        Kinds group extensions under a reusable kind. Sieves reference
-        kinds by id, so renaming a title updates every sieve automatically.
+        A kind bundles related extensions under a name. Sieve conditions
+        can match a kind instead of listing each extension, and renaming a
+        kind updates every sieve automatically.
       </p>
 
       {editing === "new" && (
