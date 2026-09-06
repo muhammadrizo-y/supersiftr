@@ -291,7 +291,7 @@ function Combobox({
       {showDropdown && (
         <div
           ref={listRef}
-          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 scrollbar-gutter-stable duration-100 animate-in fade-in-0 zoom-in-95"
+          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 scrollbar-gutter-stable duration-100 animate-in fade-in-0"
         >
           {rows.length === 0 && !showAddRow && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
@@ -347,7 +347,8 @@ function Combobox({
       )}
 
       <div
-        className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent/40 focus-within:border-ring focus-within:outline-3 focus-within:outline-ring/50"
+        data-popup-open={open || undefined}
+        className="flex min-h-8 w-full cursor-text flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 text-left text-sm transition-colors outline-none hover:bg-accent/40 data-popup-open:border-ring data-popup-open:outline-3 data-popup-open:outline-ring/50"
         onClick={() => {
           setOpen(true);
           inputRef.current?.focus();
@@ -807,7 +808,9 @@ function SieveForm({
                     }
                   >
                     <SelectTrigger className="h-8 w-28 shrink-0">
-                      <SelectValue />
+                      <SelectValue>
+                        {ACTION_OPTIONS.find((o) => o.value === a.type)?.label ?? a.type}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectPopup>
                       {ACTION_OPTIONS.map((o) => (
