@@ -61,15 +61,20 @@ fn set_run_at_startup(enabled: bool, app: tauri::AppHandle) -> Result<bool, Stri
 
 fn set_tray_enabled(app: &tauri::AppHandle, enabled: bool) -> Result<(), String> {
     let state = app.state::<AppState>();
-    let mut tray = state.tray.lock().unwrap();
+    let mut tray_opt = state.tray.lock().unwrap();
     match enabled {
-        true if tray.is_none() => {
-            *tray = Some(build_tray(app)?);
+        true => {
+            if let Some(tray) = tray_opt.as_ref() {
+                tray.set_visible(true).map_err(|e| e.to_string())?;
+            } else {
+                *tray_opt = Some(build_tray(app).map_err(|e| e.to_string())?);
+            }
         }
         false => {
-            *tray = None;
+            if let Some(tray) = tray_opt.as_ref() {
+                tray.set_visible(false).map_err(|e| e.to_string())?;
+            }
         }
-        _ => {}
     }
     Ok(())
 }
