@@ -157,12 +157,14 @@ function Combobox({
   onChange,
   placeholder,
   allowCustom = true,
+  onBlur,
 }: {
   options: SelectOption[];
   selected: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
   allowCustom?: boolean;
+  onBlur?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -373,6 +375,7 @@ function Combobox({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onBlur={onBlur}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="min-w-15 flex-1 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-muted-foreground"
@@ -975,6 +978,7 @@ function PresetForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [extensions, setExtensions] = useState<string[]>(initial?.extensions ?? []);
+  const [extTouched, setExtTouched] = useState(false);
 
   const extOptions: SelectOption[] = allKnownExtensions(presets).map((e) => ({
     value: e,
@@ -1022,8 +1026,9 @@ function PresetForm({
           onChange={setExtensions}
           allowCustom
           placeholder="Type or select extensions…"
+          onBlur={() => setExtTouched(true)}
         />
-        {extensions.length === 0 && (
+        {extTouched && extensions.length === 0 && (
           <p className="text-xs text-destructive">Add at least one extension.</p>
         )}
       </div>
@@ -1050,7 +1055,7 @@ function SettingsTab({
   onUpdate: (preset: Preset) => void;
   onDelete: (name: string) => void;
 }) {
-  const [editing, setEditing] = useState<Preset | "new" | null>(null);
+  const [editing, setEditing] = useState<string | "new" | null>(null);
 
   return (
     <section className="px-6 py-5">
@@ -1105,11 +1110,11 @@ function SettingsTab({
                     <Tooltip>
                       <TooltipTrigger
                         render={
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setEditing(p)}
-                          >
+<Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditing(p.name)}
+                        >
                             <Pencil className="size-3.5" />
                           </Button>
                         }
