@@ -38,14 +38,14 @@ const PRESETS_SCHEMA_VERSION: u32 = 1;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PresetStore {
-    pub version: u32,
+    pub schema_version: u32,
     pub presets: Vec<Preset>,
 }
 
 impl Default for PresetStore {
     fn default() -> Self {
         Self {
-            version: PRESETS_SCHEMA_VERSION,
+            schema_version: PRESETS_SCHEMA_VERSION,
             presets: Self::defaults_presets(),
         }
     }
@@ -140,18 +140,18 @@ mod tests {
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), store.presets.len());
-        assert_eq!(store.version, PRESETS_SCHEMA_VERSION);
+        assert_eq!(store.schema_version, PRESETS_SCHEMA_VERSION);
     }
 
     #[test]
     fn completed_empty_roundtrip() {
         let store = PresetStore {
-            version: PRESETS_SCHEMA_VERSION,
+            schema_version: PRESETS_SCHEMA_VERSION,
             presets: Vec::new(),
         };
         let json = serde_json::to_string(&store).unwrap();
         let back: PresetStore = serde_json::from_str(&json).unwrap();
         assert!(back.presets.is_empty());
-        assert_eq!(back.version, PRESETS_SCHEMA_VERSION);
+        assert_eq!(back.schema_version, PRESETS_SCHEMA_VERSION);
     }
 }

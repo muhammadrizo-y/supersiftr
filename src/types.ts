@@ -38,7 +38,7 @@ export type Preset = {
 };
 
 export type AppConfig = {
-  version: number;
+  schema_version: number;
   show_in_tray: boolean;
 };
 

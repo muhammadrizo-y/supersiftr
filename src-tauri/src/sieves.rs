@@ -219,7 +219,7 @@ const SIEVES_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SieveStore {
-    pub version: u32,
+    pub schema_version: u32,
     #[serde(default)]
     pub sieves: Vec<Sieve>,
 }
@@ -227,7 +227,7 @@ pub struct SieveStore {
 impl Default for SieveStore {
     fn default() -> Self {
         Self {
-            version: SIEVES_SCHEMA_VERSION,
+            schema_version: SIEVES_SCHEMA_VERSION,
             sieves: Vec::new(),
         }
     }
@@ -403,7 +403,7 @@ mod tests {
     #[test]
     fn store_roundtrip() {
         let store = SieveStore {
-            version: SIEVES_SCHEMA_VERSION,
+            schema_version: SIEVES_SCHEMA_VERSION,
             sieves: vec![sieve(
                 vec![name_condition(SieveOperator::Matches, vec!["*invoice*".into()])],
                 vec![RuleAction::Move {
@@ -413,7 +413,7 @@ mod tests {
         };
         let json = serde_json::to_string(&store).unwrap();
         let back: SieveStore = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.version, SIEVES_SCHEMA_VERSION);
+        assert_eq!(back.schema_version, SIEVES_SCHEMA_VERSION);
         assert_eq!(back.sieves.len(), 1);
         assert_eq!(back.sieves[0].conditions[0].operator, SieveOperator::Matches);
         match &back.sieves[0].actions[0] {
@@ -425,7 +425,7 @@ mod tests {
     #[test]
     fn default_store_has_current_version() {
         let store = SieveStore::default();
-        assert_eq!(store.version, SIEVES_SCHEMA_VERSION);
+        assert_eq!(store.schema_version, SIEVES_SCHEMA_VERSION);
         assert!(store.sieves.is_empty());
     }
 }

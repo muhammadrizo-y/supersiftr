@@ -11,14 +11,14 @@ pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
-    pub version: u32,
+    pub schema_version: u32,
     pub show_in_tray: bool,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            version: CONFIG_SCHEMA_VERSION,
+            schema_version: CONFIG_SCHEMA_VERSION,
             show_in_tray: true,
         }
     }
@@ -68,7 +68,7 @@ mod tests {
     #[test]
     fn default_config_has_current_version() {
         let config = AppConfig::default();
-        assert_eq!(config.version, CONFIG_SCHEMA_VERSION);
+        assert_eq!(config.schema_version, CONFIG_SCHEMA_VERSION);
     }
 
     #[test]
@@ -76,6 +76,6 @@ mod tests {
         let config = AppConfig::default();
         let json = serde_json::to_string(&config).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.version, CONFIG_SCHEMA_VERSION);
+        assert_eq!(back.schema_version, CONFIG_SCHEMA_VERSION);
     }
 }
