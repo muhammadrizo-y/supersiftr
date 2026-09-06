@@ -89,7 +89,7 @@ function Sidebar({
             }}
             className={cn(
               "group flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-              view.kind === "sieve" && view.index === i
+              (view.kind === "sieve" || view.kind === "edit") && view.index === i
                 ? "bg-accent text-accent-foreground"
                 : "text-foreground hover:bg-accent/60",
             )}
