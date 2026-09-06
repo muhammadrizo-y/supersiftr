@@ -1,7 +1,7 @@
 export type RuleAction =
-  | { type: "move"; destination: string }
-  | { type: "copy"; destination: string }
-  | { type: "rename"; pattern: string };
+  | { type: "move"; folder: string }
+  | { type: "copy"; folder: string }
+  | { type: "rename"; name: string };
 
 export type ActionType = RuleAction["type"];
 

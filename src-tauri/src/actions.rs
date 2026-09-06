@@ -16,8 +16,6 @@ pub enum ActionError {
     Io(#[from] std::io::Error),
     #[error("Source does not exist: {0}")]
     SourceNotFound(String),
-    #[error("Rename pattern missing placeholder `{{name}}`")]
-    MissingPlaceholder,
 }
 
 impl serde::Serialize for ActionError {
@@ -37,37 +35,38 @@ pub fn execute(source: &Path, action: &RuleAction) -> Result<PathBuf, ActionErro
     }
 
     match action {
-        RuleAction::Move { destination } => {
-            let dest = resolve_destination(source, destination);
+        RuleAction::Move { folder } => {
+            let dest = folder_path(source, folder);
             move_file(source, &dest)?;
             Ok(dest)
         }
-        RuleAction::Copy { destination } => {
-            let dest = resolve_destination(source, destination);
+        RuleAction::Copy { folder } => {
+            let dest = folder_path(source, folder);
             retry(|| fs::copy(source, &dest).map(|_| ()))?;
             Ok(dest)
         }
-        RuleAction::Rename { pattern } => {
-            let file_name = source
-                .file_name()
-                .and_then(|n| n.to_str())
-                .ok_or_else(|| ActionError::Io(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "source has no valid file name",
-                )))?;
-            if !pattern.contains("{name}") {
-                return Err(ActionError::MissingPlaceholder);
-            }
-            let new_name = pattern.replace("{name}", file_name);
-            let dest = source.with_file_name(new_name);
+        RuleAction::Rename { name } => {
+            let stem = source
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let name = name.replace("{name}", &stem);
+            let ext = source
+                .extension()
+                .map(|e| format!(".{}", e.to_string_lossy()))
+                .unwrap_or_default();
+            let new_name = format!("{name}{ext}");
+            let dest = source.with_file_name(&new_name);
             retry(|| fs::rename(source, &dest))?;
             Ok(dest)
         }
     }
 }
 
-fn resolve_destination(source: &Path, destination: &str) -> PathBuf {
-    let mut dest = PathBuf::from(destination);
+/// Joins the source filename onto a folder path, so move/copy can only ever
+/// relocate a file and never rename it.
+fn folder_path(source: &Path, folder: &str) -> PathBuf {
+    let mut dest = PathBuf::from(folder);
     if let Some(name) = source.file_name() {
         dest.push(name);
     }
@@ -143,7 +142,7 @@ mod tests {
     }
 
     #[test]
-    fn move_file_to_destination() {
+    fn move_file_to_folder() {
         let dir = temp_dir("move");
         let src = dir.join("a.txt");
         let dest_dir = dir.join("dest");
@@ -153,7 +152,7 @@ mod tests {
         let result = execute(
             &src,
             &RuleAction::Move {
-                destination: dest_dir.to_string_lossy().to_string(),
+                folder: dest_dir.to_string_lossy().to_string(),
             },
         );
         assert!(result.is_ok());
@@ -162,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn copy_file_to_destination() {
+    fn copy_file_to_folder() {
         let dir = temp_dir("copy");
         let src = dir.join("a.txt");
         let dest_dir = dir.join("dest");
@@ -172,7 +171,7 @@ mod tests {
         let result = execute(
             &src,
             &RuleAction::Copy {
-                destination: dest_dir.to_string_lossy().to_string(),
+                folder: dest_dir.to_string_lossy().to_string(),
             },
         );
         assert!(result.is_ok());
@@ -181,24 +180,89 @@ mod tests {
     }
 
     #[test]
-    fn rename_file_with_placeholder() {
+    fn rename_file_without_extension() {
         let dir = temp_dir("rename");
         let src = dir.join("a.txt");
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { pattern: "new_{name}".into() });
+        let result = execute(&src, &RuleAction::Rename { name: "new".into() });
         assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.join("new.txt"));
+        assert!(dir.join("new.txt").exists());
+        assert!(!src.exists());
+    }
+
+    #[test]
+    fn rename_file_keeps_extension() {
+        let dir = temp_dir("rename_ext");
+        let src = dir.join("photo.tar.gz");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(&src, &RuleAction::Rename { name: "album".into() });
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.join("album.gz"));
+        assert!(dir.join("album.gz").exists());
+    }
+
+    #[test]
+    fn rename_supports_legacy_name_placeholder() {
+        let dir = temp_dir("rename_placeholder");
+        let src = dir.join("a.txt");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(&src, &RuleAction::Rename { name: "new_{name}".into() });
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.join("new_a.txt"));
         assert!(dir.join("new_a.txt").exists());
         assert!(!src.exists());
     }
 
     #[test]
-    fn missing_placeholder_errors() {
-        let dir = temp_dir("rename_err");
+    fn actions_chain_rename_then_move() {
+        let dir = temp_dir("chain_rm");
         let src = dir.join("a.txt");
+        let dest_dir = dir.join("dest");
+        fs::create_dir_all(&dest_dir).unwrap();
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { pattern: "fixed".into() });
-        assert!(matches!(result, Err(ActionError::MissingPlaceholder)));
+        let renamed = execute(&src, &RuleAction::Rename { name: "b".into() }).unwrap();
+        assert_eq!(renamed, dir.join("b.txt"));
+        let moved = execute(&renamed, &RuleAction::Move {
+            folder: dest_dir.to_string_lossy().to_string(),
+        })
+        .unwrap();
+        assert_eq!(moved, dest_dir.join("b.txt"));
+        assert!(dest_dir.join("b.txt").exists());
+        assert!(!src.exists());
+    }
+
+    #[test]
+    fn actions_chain_copy_then_rename() {
+        let dir = temp_dir("chain_cr");
+        let src = dir.join("a.txt");
+        let dest_dir = dir.join("dest");
+        fs::create_dir_all(&dest_dir).unwrap();
+        fs::write(&src, "hello").unwrap();
+
+        let copy = execute(&src, &RuleAction::Copy {
+            folder: dest_dir.to_string_lossy().to_string(),
+        })
+        .unwrap();
+        assert_eq!(copy, dest_dir.join("a.txt"));
+        assert!(src.exists());
+
+        let renamed = execute(&copy, &RuleAction::Rename { name: "b".into() }).unwrap();
+        assert_eq!(renamed, dest_dir.join("b.txt"));
+        assert!(dest_dir.join("b.txt").exists());
+        assert!(dest_dir.join("a.txt").exists() == false);
+    }
+
+    #[test]
+    fn missing_source_errors() {
+        let dir = temp_dir("source_err");
+        let src = dir.join("nope.txt");
+
+        let result = execute(&src, &RuleAction::Rename { name: "x".into() });
+        assert!(matches!(result, Err(ActionError::SourceNotFound(_))));
     }
 }

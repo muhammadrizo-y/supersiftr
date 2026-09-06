@@ -69,8 +69,8 @@ type ConditionRowState = {
 
 type ActionRowState = {
   type: ActionType;
-  destination: string;
-  pattern: string;
+  folder: string;
+  name: string;
 };
 
 type SieveFormState = {
@@ -406,9 +406,9 @@ function actionRowFromAction(action: RuleAction): ActionRowState {
   switch (action.type) {
     case "move":
     case "copy":
-      return { type: action.type, destination: action.destination, pattern: "" };
+      return { type: action.type, folder: action.folder, name: "" };
     case "rename":
-      return { type: "rename", destination: "", pattern: action.pattern };
+      return { type: "rename", folder: "", name: action.name };
   }
 }
 
@@ -467,7 +467,7 @@ function SieveForm({
     }));
 
   function setActionType(index: number, type: ActionType) {
-    updateAction(index, { type, destination: "", pattern: "" });
+    updateAction(index, { type, folder: "", name: "" });
   }
 
   function removeAction(index: number) {
@@ -506,12 +506,12 @@ function SieveForm({
     const actions: RuleAction[] = form.actions
       .map((a) => {
         if (a.type === "rename") {
-          return { type: "rename" as const, pattern: a.pattern.trim() };
+          return { type: "rename" as const, name: a.name.trim() };
         }
-        return { type: a.type, destination: a.destination.trim() };
+        return { type: a.type, folder: a.folder.trim() };
       })
       .filter(
-        (a) => (a.type === "rename" ? a.pattern !== "" : a.destination !== ""),
+        (a) => (a.type === "rename" ? a.name !== "" : a.folder !== ""),
       );
 
     onSubmit({
@@ -777,7 +777,7 @@ function SieveForm({
                     onClick={() =>
                       set("actions", [
                         ...form.actions,
-                        { type: "move", destination: "", pattern: "" },
+                        { type: "move", folder: "", name: "" },
                       ])
                     }
                   >
@@ -820,22 +820,20 @@ function SieveForm({
                     </SelectPopup>
                   </Select>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    {a.type === "rename" ? "with pattern:" : "to folder:"}
+                    {a.type === "rename" ? "rename to:" : "to folder:"}
                   </span>
                   {a.type === "rename" ? (
                     <Input
-                      value={a.pattern}
-                      onChange={(e) => updateAction(i, { pattern: e.currentTarget.value })}
-                      placeholder="report_{name}"
+                      value={a.name}
+                      onChange={(e) => updateAction(i, { name: e.currentTarget.value })}
+                      placeholder="report"
                       className="flex-1"
                     />
                   ) : (
                     <>
                       <Input
-                        value={a.destination}
-                        onChange={(e) =>
-                          updateAction(i, { destination: e.currentTarget.value })
-                        }
+                        value={a.folder}
+                        onChange={(e) => updateAction(i, { folder: e.currentTarget.value })}
                         placeholder="D:\Temp"
                         className="flex-1"
                       />
@@ -845,7 +843,7 @@ function SieveForm({
                         size="sm"
                         onClick={async () => {
                           const folder = await pickFolder();
-                          if (folder) updateAction(i, { destination: folder });
+                          if (folder) updateAction(i, { folder });
                         }}
                       >
                         <Folder className="size-3.5" /> Browse…
@@ -873,8 +871,8 @@ function SieveForm({
             </ul>
           )}
           <p className="text-xs text-muted-foreground">
-            Rename patterns can use {"{name}"} for the original filename. Actions
-            run in order.
+            Rename uses a new name without the extension (kept from the file).
+            Actions run in order, each on the result of the previous one.
           </p>
         </div>
       </fieldset>
@@ -914,11 +912,11 @@ function describeConditions(sieve: Sieve, presets: Preset[]): string {
 function describeAction(action: RuleAction): string {
   switch (action.type) {
     case "move":
-      return `Move to ${action.destination}`;
+      return `Move to ${action.folder}`;
     case "copy":
-      return `Copy to ${action.destination}`;
+      return `Copy to ${action.folder}`;
     case "rename":
-      return `Rename to ${action.pattern}`;
+      return `Rename to ${action.name}`;
   }
 }
 

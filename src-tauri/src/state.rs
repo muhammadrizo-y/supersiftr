@@ -94,8 +94,9 @@ impl AppState {
                 continue;
             }
             if sieve.matches(&path, &presets) {
+                let mut current = path.to_owned();
                 for action in &sieve.actions {
-                    match actions::execute(&path, action) {
+                    match actions::execute(&current, action) {
                         Ok(dest) => {
                             let verb = action_verb(action);
                             state.log.write(
@@ -104,14 +105,18 @@ impl AppState {
                                 &format!(
                                     "[{}] {verb} \"{}\" -> \"{}\"",
                                     sieve.name,
-                                    path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+                                    current
+                                        .file_name()
+                                        .map(|n| n.to_string_lossy().to_string())
+                                        .unwrap_or_default(),
                                     dest.to_string_lossy(),
                                 ),
                             );
+                            current = dest;
                         }
                         Err(actions::ActionError::SourceNotFound(_)) => {
-                            // The file was already moved by an earlier duplicate
-                            // event; not an error, so just ignore it.
+                            // A prior action in this chain already moved the file,
+                            // or a duplicate event fired; not an error.
                         }
                         Err(e) => {
                             let mut error = e.to_string();
@@ -125,7 +130,11 @@ impl AppState {
                             state.log.write(
                                 &app,
                                 "error",
-                                &format!("[{}] \"{}\": {error}", sieve.name, path.to_string_lossy()),
+                                &format!(
+                                    "[{}] \"{}\": {error}",
+                                    sieve.name,
+                                    current.to_string_lossy()
+                                ),
                             );
                         }
                     }
