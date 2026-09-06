@@ -931,6 +931,7 @@ function WindowControls() {
     <div className="flex h-full items-stretch">
       <button
         type="button"
+        tabIndex={-1}
         title="Minimize"
         onClick={() => appWindow.minimize()}
         className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
@@ -939,6 +940,7 @@ function WindowControls() {
       </button>
       <button
         type="button"
+        tabIndex={-1}
         title="Maximize"
         onClick={() => appWindow.toggleMaximize()}
         className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
@@ -947,6 +949,7 @@ function WindowControls() {
       </button>
       <button
         type="button"
+        tabIndex={-1}
         title="Close"
         onClick={() => appWindow.close()}
         className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-[#c42b1c] hover:text-white"
