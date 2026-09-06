@@ -1088,6 +1088,7 @@ function SettingsTab({
 
   return (
     <section className="px-6 py-5">
+      <h2 className="mb-4 text-2xl font-semibold">Settings</h2>
       <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
         <div>
           <p className="text-sm font-medium">Open at Login</p>
