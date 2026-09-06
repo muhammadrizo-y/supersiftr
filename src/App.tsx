@@ -291,7 +291,7 @@ function Combobox({
       {showDropdown && (
         <div
           ref={listRef}
-          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md scrollbar-gutter-stable"
+          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 scrollbar-gutter-stable"
         >
           {rows.length === 0 && !showAddRow && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
@@ -310,7 +310,7 @@ function Combobox({
                 className={cn(
                   "flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm",
                   isActive
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-accent text-accent-foreground"
                     : "text-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
               >
@@ -330,13 +330,13 @@ function Combobox({
               className={cn(
                 "flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm",
                 highlight === rows.length
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-accent text-accent-foreground"
                   : "text-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
               <Plus className="size-4 shrink-0" />
               <span>
-                <span className={cn(highlight === rows.length ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                <span className={cn(highlight === rows.length ? "text-accent-foreground/70" : "text-muted-foreground")}>
                   Add:{" "}
                 </span>
                 {query.trim()}
