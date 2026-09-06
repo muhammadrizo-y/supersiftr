@@ -283,7 +283,7 @@ function Combobox({
       {showDropdown && (
         <div
           ref={listRef}
-          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md [scrollbar-gutter:stable]"
+          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md scrollbar-gutter-stable"
         >
           {rows.length === 0 && !showAddRow && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
@@ -865,7 +865,7 @@ function SieveForm({
       </fieldset>
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit">{initial ? "Save changes" : "Add sieve"}</Button>
@@ -1025,10 +1025,10 @@ function PresetForm({
         />
       </div>
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit">{initial ? "Save" : "Add preset"}</Button>
+        <Button type="submit">{initial ? "Save" : "Add"}</Button>
       </div>
     </form>
   );
@@ -1088,7 +1088,7 @@ function SettingsTab({
                       render={
                         <Button
                           size="sm"
-                          variant="ghost"
+                          variant="outline"
                           onClick={() => setEditing(p)}
                         >
                           <Pencil className="size-3.5" />
@@ -1102,7 +1102,7 @@ function SettingsTab({
                       render={
                         <Button
                           size="sm"
-                          variant="ghost"
+                          variant="outline"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => onDelete(p.name)}
                         >
@@ -1222,7 +1222,7 @@ function App() {
               render={
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   onClick={() => setView({ kind: "edit", index })}
                 >
                   <Pencil className="size-3.5" /> Edit
