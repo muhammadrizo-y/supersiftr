@@ -291,7 +291,7 @@ function Combobox({
       {showDropdown && (
         <div
           ref={listRef}
-          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 scrollbar-gutter-stable"
+          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 scrollbar-gutter-stable duration-100 animate-in fade-in-0 zoom-in-95"
         >
           {rows.length === 0 && !showAddRow && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
@@ -663,7 +663,9 @@ function SieveForm({
                     }
                   >
                     <SelectTrigger className="h-8 w-34 shrink-0">
-                      <SelectValue />
+                      <SelectValue>
+                        {PROPERTY_OPTIONS.find((p) => p.value === c.property)?.label ?? c.property}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectPopup>
                       {PROPERTY_OPTIONS.map((p) => (
@@ -682,7 +684,9 @@ function SieveForm({
                     }
                   >
                     <SelectTrigger className="h-8 w-32 shrink-0">
-                      <SelectValue />
+                      <SelectValue>
+                        {OPERATOR_OPTIONS[c.property].find((o) => o.value === c.operator)?.label ?? c.operator}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectPopup>
                       {OPERATOR_OPTIONS[c.property].map((o) => (
@@ -889,13 +893,13 @@ function describeCondition(c: SieveCondition, presets: Preset[]): string {
     .join(", ");
   switch (c.property) {
     case "kind":
-      return `kind ${c.operator === "is" ? "is" : "isn't"} ${values}`;
+      return `Kind ${c.operator === "is" ? "is" : "isn't"} ${values}`;
     case "extension":
-      return `extension ${c.operator === "is" ? "is" : "isn't"} ${values}`;
+      return `Extension ${c.operator === "is" ? "is" : "isn't"} ${values}`;
     case "name":
-      return `name ${c.operator === "matches" ? "matches" : "doesn't match"} ${values}`;
+      return `Name ${c.operator === "matches" ? "matches" : "doesn't match"} ${values}`;
     case "modified":
-      return `modified ${c.operator} ${values}`;
+      return `Modified ${c.operator} ${values}`;
   }
 }
 
