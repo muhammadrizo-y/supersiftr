@@ -34,7 +34,7 @@ function SidebarTab({
       )}
     >
       {icon}
-      {label}
+      <span className="leading-none">{label}</span>
     </button>
   );
 }
@@ -56,8 +56,11 @@ function Sidebar({
         className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3"
         data-tauri-drag-region
       >
-        <h1 className="px-1 text-sm font-semibold" data-tauri-drag-region>
-          Sieves
+        <h1
+          className="px-1 text-sm leading-none font-semibold"
+          data-tauri-drag-region
+        >
+          <span>Sieves</span>
         </h1>
         <Tooltip>
           <TooltipTrigger
