@@ -135,18 +135,9 @@ impl SieveCondition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleAction {
-    Move {
-        #[serde(alias = "destination")]
-        folder: String,
-    },
-    Copy {
-        #[serde(alias = "destination")]
-        folder: String,
-    },
-    Rename {
-        #[serde(alias = "pattern")]
-        name: String,
-    },
+    Move { folder: String },
+    Copy { folder: String },
+    Rename { name: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -424,32 +415,6 @@ mod tests {
         match &back.sieves[0].actions[0] {
             RuleAction::Move { folder } => assert_eq!(folder, "D:\\Temp"),
             _ => panic!("expected Move action"),
-        }
-    }
-
-    #[test]
-    fn legacy_action_fields_load_via_aliases() {
-        let json = r#"{
-            "version": 1,
-            "sieves": [{
-                "name": "legacy",
-                "watched_folders": [],
-                "mode": "all",
-                "conditions": [],
-                "actions": [
-                    { "type": "move", "destination": "D:\\Temp" },
-                    { "type": "rename", "pattern": "new_{name}" }
-                ]
-            }]
-        }"#;
-        let store: SieveStore = serde_json::from_str(json).unwrap();
-        match &store.sieves[0].actions[0] {
-            RuleAction::Move { folder } => assert_eq!(folder, "D:\\Temp"),
-            _ => panic!("expected Move action"),
-        }
-        match &store.sieves[0].actions[1] {
-            RuleAction::Rename { name } => assert_eq!(name, "new_{name}"),
-            _ => panic!("expected Rename action"),
         }
     }
 

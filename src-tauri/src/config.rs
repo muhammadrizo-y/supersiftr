@@ -7,7 +7,7 @@ use thiserror::Error;
 /// Current schema version for every versioned JSON file this app persists.
 /// Bump when a file's shape breaks; loading is tolerant (missing version is
 /// assumed to be the latest) since the app is still in beta.
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]

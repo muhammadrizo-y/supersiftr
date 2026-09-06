@@ -46,11 +46,6 @@ pub fn execute(source: &Path, action: &RuleAction) -> Result<PathBuf, ActionErro
             Ok(dest)
         }
         RuleAction::Rename { name } => {
-            let stem = source
-                .file_stem()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default();
-            let name = name.replace("{name}", &stem);
             let ext = source
                 .extension()
                 .map(|e| format!(".{}", e.to_string_lossy()))
@@ -202,19 +197,6 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("album.gz"));
         assert!(dir.join("album.gz").exists());
-    }
-
-    #[test]
-    fn rename_supports_legacy_name_placeholder() {
-        let dir = temp_dir("rename_placeholder");
-        let src = dir.join("a.txt");
-        fs::write(&src, "hello").unwrap();
-
-        let result = execute(&src, &RuleAction::Rename { name: "new_{name}".into() });
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), dir.join("new_a.txt"));
-        assert!(dir.join("new_a.txt").exists());
-        assert!(!src.exists());
     }
 
     #[test]
