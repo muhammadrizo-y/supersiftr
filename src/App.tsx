@@ -1081,9 +1081,8 @@ function SettingsTab({
       if (next) await enableAutostart();
       else await disableAutostart();
       setLoginStartup(next);
-      toast.success(next ? "Opens at login" : "No longer opens at login");
     } catch {
-      toast.error("Could not update login startup");
+      // ignore
     }
   }
 
@@ -1091,9 +1090,8 @@ function SettingsTab({
     try {
       await invoke<AppConfig>("set_show_in_tray", { enabled: next });
       setTrayEnabled(next);
-      toast.success(next ? "Stays running in the tray after close" : "Quits when the window closes");
     } catch {
-      toast.error("Could not update tray setting");
+      // ignore
     }
   }
 

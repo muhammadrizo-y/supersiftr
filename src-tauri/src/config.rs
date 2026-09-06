@@ -20,7 +20,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             version: SCHEMA_VERSION,
-            show_in_tray: false,
+            show_in_tray: true,
         }
     }
 }
