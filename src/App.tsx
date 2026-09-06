@@ -994,7 +994,7 @@ function PresetForm({
       }}
     >
       <div className="space-y-1.5">
-        <Label htmlFor="preset-name">Name (id, kebab-case) *</Label>
+        <Label htmlFor="preset-name">Name (id) *</Label>
         <Input
           id="preset-name"
           value={name}
@@ -1023,12 +1023,17 @@ function PresetForm({
           allowCustom
           placeholder="Type or select extensions…"
         />
+        {extensions.length === 0 && (
+          <p className="text-xs text-destructive">Add at least one extension.</p>
+        )}
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit">{initial ? "Save" : "Add"}</Button>
+        <Button type="submit" disabled={extensions.length === 0}>
+          {initial ? "Save" : "Add"}
+        </Button>
       </div>
     </form>
   );
@@ -1052,7 +1057,7 @@ function SettingsTab({
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Kinds</h2>
         <Button size="sm" variant="outline" onClick={() => setEditing("new")}>
-          <Plus className="size-3.5" /> Add preset
+          <Plus className="size-3.5" /> Add kind
         </Button>
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
@@ -1060,13 +1065,11 @@ function SettingsTab({
         kinds by id, so renaming a title updates every sieve automatically.
       </p>
 
-      {editing && (
+      {editing === "new" && (
         <PresetForm
           presets={presets}
-          initial={editing === "new" ? undefined : editing}
           onSave={(preset) => {
-            if (editing === "new") onAdd(preset);
-            else onUpdate(preset);
+            onAdd(preset);
             setEditing(null);
           }}
           onCancel={() => setEditing(null)}
@@ -1077,48 +1080,65 @@ function SettingsTab({
         <p className="text-sm text-muted-foreground">No kinds yet.</p>
       ) : (
         <ul className="space-y-2">
-          {presets.map((p) => (
-            <li key={p.name} className="rounded-lg border border-border px-4 py-3">
-              <div className="flex items-center gap-2">
-                <strong className="text-sm font-medium">{p.title}</strong>
-                <span className="text-xs text-muted-foreground">{p.name}</span>
-                <div className="ml-auto flex gap-1">
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditing(p)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>Edit</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => onDelete(p.name)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>Delete</TooltipContent>
-                  </Tooltip>
+          {presets.map((p) =>
+            editing === p.name ? (
+              <li key={p.name}>
+                <PresetForm
+                  presets={presets}
+                  initial={p}
+                  onSave={(preset) => {
+                    onUpdate(preset);
+                    setEditing(null);
+                  }}
+                  onCancel={() => setEditing(null)}
+                />
+              </li>
+            ) : (
+              <li
+                key={p.name}
+                className="rounded-lg border border-border px-4 py-3"
+              >
+                <div className="flex items-center gap-2">
+                  <strong className="text-sm font-medium">{p.title}</strong>
+                  <span className="text-xs text-muted-foreground">{p.name}</span>
+                  <div className="ml-auto flex gap-1">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditing(p)}
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Edit</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => onDelete(p.name)}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Delete</TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
-              </div>
-              <p className="mt-1 select-text text-xs text-muted-foreground">
-                {p.extensions.join(", ") || "no extensions"}
-              </p>
-            </li>
-          ))}
+                <p className="mt-1 select-text text-xs text-muted-foreground">
+                  {p.extensions.join(", ") || "no extensions"}
+                </p>
+              </li>
+            ),
+          )}
         </ul>
       )}
     </section>
@@ -1180,7 +1200,7 @@ function App() {
   async function addPreset(preset: Preset) {
     const updated = await invoke<Preset[]>("add_preset", { preset });
     setPresets(updated);
-    toast.success(`Preset "${preset.title}" created`);
+    toast.success(`Kind "${preset.title}" created`);
   }
 
   async function updatePreset(preset: Preset) {
@@ -1191,8 +1211,8 @@ function App() {
   async function deletePreset(name: string) {
     const updated = await invoke<Preset[]>("delete_preset", { name });
     setPresets(updated);
-    log(`Deleted kind preset: ${name}`);
-    toast.success(`Preset "${name}" deleted`);
+    log(`Deleted kind: ${name}`);
+    toast.success(`Kind "${name}" deleted`);
   }
 
   function renderSieveDetail(sieve: Sieve, index: number) {
@@ -1203,9 +1223,9 @@ function App() {
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <span>
-              Missing kind preset{missing.length > 1 ? "s" : ""}:{" "}
-              {missing.map((m) => presetByTitle(presets, m)).join(", ")}. This
-              kind preset does not exist.
+              Missing kind{missing.length > 1 ? "s" : ""}:{" "}
+              {missing.map((m) => presetByTitle(presets, m)).join(", ")}.
+              This kind does not exist.
             </span>
           </div>
         )}

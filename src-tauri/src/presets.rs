@@ -22,8 +22,8 @@ pub enum PresetError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Preset {
-    /// Stable kebab-case identifier (e.g. "movie"). Rules reference kinds by
-    /// this id; renaming `title` does not break references.
+    /// Stable identifier (e.g. "movie"). Rules reference kinds by this id;
+    /// renaming `title` does not break references.
     pub name: String,
     /// Human-friendly display name (e.g. "Movie").
     pub title: String,
