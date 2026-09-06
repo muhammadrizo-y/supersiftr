@@ -2,6 +2,7 @@ import { Activity, Plus, Settings, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -74,7 +75,7 @@ function Sidebar({
         </Tooltip>
       </header>
 
-      <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-2">
+      <ScrollArea className="min-h-0 flex-1" contentClassName="flex flex-col gap-0.5 px-2 py-2">
         {sieves.map((sieve, i) => (
           <div
             key={i}
@@ -116,7 +117,7 @@ function Sidebar({
         {sieves.length === 0 && (
           <p className="px-2 py-1 text-xs text-muted-foreground">No sieves yet.</p>
         )}
-      </nav>
+      </ScrollArea>
 
       <div className="flex shrink-0 flex-col gap-0.5 border-t border-border p-2">
         <SidebarTab

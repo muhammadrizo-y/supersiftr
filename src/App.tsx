@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectItem,
@@ -282,7 +283,7 @@ function Combobox({
       {showDropdown && (
         <div
           ref={listRef}
-          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md [scrollbar-gutter:stable]"
         >
           {rows.length === 0 && !showAddRow && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
@@ -1357,9 +1358,9 @@ function App() {
               <WindowControls />
             </div>
           </div>
-          <section className="min-w-0 flex-1 divide-y divide-border overflow-y-auto">
+          <ScrollArea className="min-w-0 flex-1" contentClassName="divide-y divide-border">
             {renderMain()}
-          </section>
+          </ScrollArea>
         </div>
       </div>
       <Toaster position="bottom-right" />
