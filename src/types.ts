@@ -40,7 +40,6 @@ export type Preset = {
 export type AppConfig = {
   schema_version: number;
   show_in_tray: boolean;
-  run_at_startup: boolean;
 };
 
 export type ActivityEntry = {

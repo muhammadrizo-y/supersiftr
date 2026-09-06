@@ -1066,20 +1066,15 @@ function SettingsTab({
 
   useEffect(() => {
     invoke<AppConfig>("get_config")
-      .then((c) => {
-        setRunAtStartup(c.run_at_startup);
-        setTrayEnabled(c.show_in_tray);
-      })
-      .catch(() => {
-        setRunAtStartup(false);
-        setTrayEnabled(false);
-      });
+      .then((c) => setTrayEnabled(c.show_in_tray))
+      .catch(() => setTrayEnabled(false));
+    invoke<boolean>("get_run_at_startup").then(setRunAtStartup).catch(() => setRunAtStartup(false));
   }, []);
 
   async function onToggleRunAtStartup(next: boolean) {
     try {
-      await invoke<AppConfig>("set_run_at_startup", { enabled: next });
-      setRunAtStartup(next);
+      const enabled = await invoke<boolean>("set_run_at_startup", { enabled: next });
+      setRunAtStartup(enabled);
     } catch {
       // ignore
     }

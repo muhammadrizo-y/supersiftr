@@ -43,13 +43,12 @@ fn set_show_in_tray(enabled: bool, app: tauri::AppHandle) -> Result<AppConfig, S
 }
 
 #[tauri::command]
-fn set_run_at_startup(enabled: bool, app: tauri::AppHandle) -> Result<AppConfig, String> {
-    {
-        let state = app.state::<AppState>();
-        let mut config = state.config.lock().unwrap();
-        config.run_at_startup = enabled;
-        config::save(&config).map_err(|e| e.to_string())?;
-    }
+fn get_run_at_startup(app: tauri::AppHandle) -> Result<bool, String> {
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_run_at_startup(enabled: bool, app: tauri::AppHandle) -> Result<bool, String> {
     let autolaunch = app.autolaunch();
     let result = if enabled {
         autolaunch.enable()
@@ -57,7 +56,7 @@ fn set_run_at_startup(enabled: bool, app: tauri::AppHandle) -> Result<AppConfig,
         autolaunch.disable()
     };
     result.map_err(|e| e.to_string())?;
-    Ok(get_config(app.state::<AppState>()))
+    autolaunch.is_enabled().map_err(|e| e.to_string())
 }
 
 fn set_tray_enabled(app: &tauri::AppHandle, enabled: bool) -> Result<(), String> {
@@ -298,27 +297,13 @@ pub fn run() {
                     *tray = Some(build_tray(app.handle()).map_err(|e| format!("setup tray: {e}"))?);
                 }
             }
-            {
-                // config.json is the source of truth for autostart; sync the
-                // actual registry/launch-agent entry to match it.
-                let state = app.state::<AppState>();
-                let run_at_startup = state.config.lock().unwrap().run_at_startup;
-                let autolaunch = app.autolaunch();
-                let is_enabled = autolaunch.is_enabled().unwrap_or(false);
-                if run_at_startup != is_enabled {
-                    let _ = if run_at_startup {
-                        autolaunch.enable()
-                    } else {
-                        autolaunch.disable()
-                    };
-                }
-            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             set_window_background,
             get_config,
             set_show_in_tray,
+            get_run_at_startup,
             set_run_at_startup,
             get_sieves,
             add_sieve,
