@@ -4,10 +4,9 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Current schema version for every versioned JSON file this app persists.
-/// Bump when a file's shape breaks; loading is tolerant (missing version is
-/// assumed to be the latest) since the app is still in beta.
-pub const SCHEMA_VERSION: u32 = 1;
+/// Current schema version of `config.json`. Bump when the app settings shape
+/// breaks; loading is tolerant (missing version is assumed to be the latest).
+pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -19,7 +18,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            version: SCHEMA_VERSION,
+            version: CONFIG_SCHEMA_VERSION,
             show_in_tray: true,
         }
     }
@@ -69,7 +68,7 @@ mod tests {
     #[test]
     fn default_config_has_current_version() {
         let config = AppConfig::default();
-        assert_eq!(config.version, SCHEMA_VERSION);
+        assert_eq!(config.version, CONFIG_SCHEMA_VERSION);
     }
 
     #[test]
@@ -77,6 +76,6 @@ mod tests {
         let config = AppConfig::default();
         let json = serde_json::to_string(&config).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.version, SCHEMA_VERSION);
+        assert_eq!(back.version, CONFIG_SCHEMA_VERSION);
     }
 }

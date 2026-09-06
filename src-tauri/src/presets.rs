@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::config::{config_dir, SCHEMA_VERSION};
+use crate::config::config_dir;
 
 #[derive(Debug, Error)]
 pub enum PresetError {
@@ -31,6 +31,10 @@ pub struct Preset {
     pub extensions: Vec<String>,
 }
 
+/// Current schema version of `kinds.json`. Bump only when the kind store
+/// shape breaks; independent of config/sieves versions.
+const PRESETS_SCHEMA_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PresetStore {
@@ -41,7 +45,7 @@ pub struct PresetStore {
 impl Default for PresetStore {
     fn default() -> Self {
         Self {
-            version: SCHEMA_VERSION,
+            version: PRESETS_SCHEMA_VERSION,
             presets: Self::defaults_presets(),
         }
     }
@@ -136,18 +140,18 @@ mod tests {
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), store.presets.len());
-        assert_eq!(store.version, SCHEMA_VERSION);
+        assert_eq!(store.version, PRESETS_SCHEMA_VERSION);
     }
 
     #[test]
     fn completed_empty_roundtrip() {
         let store = PresetStore {
-            version: SCHEMA_VERSION,
+            version: PRESETS_SCHEMA_VERSION,
             presets: Vec::new(),
         };
         let json = serde_json::to_string(&store).unwrap();
         let back: PresetStore = serde_json::from_str(&json).unwrap();
         assert!(back.presets.is_empty());
-        assert_eq!(back.version, SCHEMA_VERSION);
+        assert_eq!(back.version, PRESETS_SCHEMA_VERSION);
     }
 }
