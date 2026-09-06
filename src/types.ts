@@ -39,6 +39,7 @@ export type Preset = {
 
 export type AppConfig = {
   version: number;
+  show_in_tray: boolean;
 };
 
 export type ActivityEntry = {

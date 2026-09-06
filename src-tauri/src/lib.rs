@@ -6,6 +6,8 @@ pub mod sieves;
 pub mod state;
 pub mod watcher;
 
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, WindowEvent};
 
 use crate::config::AppConfig;
@@ -25,6 +27,88 @@ fn set_window_background(dark: bool, window: tauri::WebviewWindow) {
 #[tauri::command]
 fn get_config(state: State<'_, AppState>) -> AppConfig {
     state.config.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn set_show_in_tray(enabled: bool, app: tauri::AppHandle) -> Result<AppConfig, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut config = state.config.lock().unwrap();
+        config.show_in_tray = enabled;
+        config::save(&config).map_err(|e| e.to_string())?;
+    }
+    set_tray_enabled(&app, enabled).map_err(|e| e.to_string())?;
+    Ok(get_config(app.state::<AppState>()))
+}
+
+fn set_tray_enabled(app: &tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let mut tray = state.tray.lock().unwrap();
+    match enabled {
+        true if tray.is_none() => {
+            *tray = Some(build_tray(app)?);
+        }
+        false => {
+            *tray = None;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn build_tray(app: &tauri::AppHandle) -> Result<tauri::tray::TrayIcon, String> {
+    let open_item =
+        MenuItem::with_id(app, "open", "Open Supersiftr", true, None::<&str>).map_err(|e| e.to_string())?;
+    let quit_item =
+        MenuItem::with_id(app, "quit", "Quit", true, None::<&str>).map_err(|e| e.to_string())?;
+    let menu = Menu::with_items(app, &[&open_item, &quit_item]).map_err(|e| e.to_string())?;
+
+    TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .tooltip("Supersiftr")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+            }
+        })
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "open" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+            }
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .build(app)
+        .map_err(|e| e.to_string())
+}
+
+fn attach_close_behavior(window: &tauri::WebviewWindow) {
+    let handle = window.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            let state = handle.state::<AppState>();
+            if state.config.lock().unwrap().show_in_tray {
+                api.prevent_close();
+                let _ = handle.hide();
+            }
+        }
+    });
 }
 
 #[tauri::command]
@@ -186,12 +270,21 @@ pub fn run() {
             AppState::restart_watchers(app.handle()).map_err(|e| format!("setup: {e}"))?;
             if let Some(window) = app.get_webview_window("main") {
                 apply_theme_background(&window);
+                attach_close_behavior(&window);
+            }
+            {
+                let state = app.state::<AppState>();
+                if state.config.lock().unwrap().show_in_tray {
+                    let mut tray = state.tray.lock().unwrap();
+                    *tray = Some(build_tray(app.handle()).map_err(|e| format!("setup tray: {e}"))?);
+                }
             }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             set_window_background,
             get_config,
+            set_show_in_tray,
             get_sieves,
             add_sieve,
             remove_sieve,

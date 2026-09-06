@@ -15,6 +15,7 @@ pub struct AppState {
     pub sieves: Mutex<SieveStore>,
     pub presets: Mutex<PresetStore>,
     pub log: ActivityLog,
+    pub tray: Mutex<Option<tauri::tray::TrayIcon>>,
 }
 
 impl AppState {
@@ -26,6 +27,7 @@ impl AppState {
             sieves: Mutex::new(sieves::load().unwrap_or_default()),
             presets: Mutex::new(presets::load().unwrap_or_default()),
             log: ActivityLog::new(config_dir),
+            tray: Mutex::new(None),
         }
     }
 

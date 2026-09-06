@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import type {
   ActionType,
   ActivityEntry,
+  AppConfig,
   ConditionMode,
   ConditionOperator,
   ConditionProperty,
@@ -1068,9 +1069,11 @@ function SettingsTab({
 }) {
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [loginStartup, setLoginStartup] = useState<boolean | null>(null);
+  const [trayEnabled, setTrayEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     isAutostartEnabled().then(setLoginStartup).catch(() => setLoginStartup(false));
+    invoke<AppConfig>("get_config").then((c) => setTrayEnabled(c.show_in_tray)).catch(() => setTrayEnabled(false));
   }, []);
 
   async function onToggleLoginStartup(next: boolean) {
@@ -1084,21 +1087,46 @@ function SettingsTab({
     }
   }
 
+  async function onToggleTray(next: boolean) {
+    try {
+      await invoke<AppConfig>("set_show_in_tray", { enabled: next });
+      setTrayEnabled(next);
+      toast.success(next ? "Stays running in the tray after close" : "Quits when the window closes");
+    } catch {
+      toast.error("Could not update tray setting");
+    }
+  }
+
   return (
     <section className="px-6 py-5">
       <h2 className="mb-4 text-2xl font-semibold">Settings</h2>
-      <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
-        <div>
-          <p className="text-sm font-medium">Open at Login</p>
-          <p className="text-xs text-muted-foreground">
-            Start Supersiftr automatically when you sign in to Windows.
-          </p>
+      <div className="mb-6 overflow-hidden rounded-lg border border-border">
+        <div className="flex items-center justify-between gap-4 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Open at Login</p>
+            <p className="text-xs text-muted-foreground">
+              Start Supersiftr automatically when you sign in to Windows.
+            </p>
+          </div>
+          <Switch
+            checked={loginStartup ?? false}
+            disabled={loginStartup === null}
+            onCheckedChange={(next) => void onToggleLoginStartup(next)}
+          />
         </div>
-        <Switch
-          checked={loginStartup ?? false}
-          disabled={loginStartup === null}
-          onCheckedChange={(next) => void onToggleLoginStartup(next)}
-        />
+        <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Show in System Tray</p>
+            <p className="text-xs text-muted-foreground">
+              Keep Supersiftr running in the background when you close its window.
+            </p>
+          </div>
+          <Switch
+            checked={trayEnabled ?? false}
+            disabled={trayEnabled === null}
+            onCheckedChange={(next) => void onToggleTray(next)}
+          />
+        </div>
       </div>
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Kinds</h2>

@@ -13,12 +13,14 @@ pub const SCHEMA_VERSION: u32 = 1;
 #[serde(default)]
 pub struct AppConfig {
     pub version: u32,
+    pub show_in_tray: bool,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             version: SCHEMA_VERSION,
+            show_in_tray: false,
         }
     }
 }
