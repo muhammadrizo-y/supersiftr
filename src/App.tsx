@@ -4,6 +4,11 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  disable as disableAutostart,
+  enable as enableAutostart,
+  isEnabled as isAutostartEnabled,
+} from "@tauri-apps/plugin-autostart";
+import {
   ChevronDown,
   ChevronUp,
   Circle,
@@ -25,6 +30,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectItem,
@@ -1056,9 +1062,38 @@ function SettingsTab({
   onDelete: (name: string) => void;
 }) {
   const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [loginStartup, setLoginStartup] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    isAutostartEnabled().then(setLoginStartup).catch(() => setLoginStartup(false));
+  }, []);
+
+  async function onToggleLoginStartup(next: boolean) {
+    try {
+      if (next) await enableAutostart();
+      else await disableAutostart();
+      setLoginStartup(next);
+      toast.success(next ? "Opens at login" : "No longer opens at login");
+    } catch {
+      toast.error("Could not update login startup");
+    }
+  }
 
   return (
     <section className="px-6 py-5">
+      <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
+        <div>
+          <p className="text-sm font-medium">Open at Login</p>
+          <p className="text-xs text-muted-foreground">
+            Start Supersiftr automatically when you sign in to Windows.
+          </p>
+        </div>
+        <Switch
+          checked={loginStartup ?? false}
+          disabled={loginStartup === null}
+          onCheckedChange={(next) => void onToggleLoginStartup(next)}
+        />
+      </div>
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Kinds</h2>
         <Button size="sm" variant="outline" onClick={() => setEditing("new")}>

@@ -177,6 +177,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
         .manage(AppState::new())
         .setup(|app| {
             AppState::restart_watchers(app.handle()).map_err(|e| format!("setup: {e}"))?;
