@@ -12,7 +12,6 @@
     "core:window:allow-close",
     "opener:default",
     "dialog:default",
-    "fs:default",
-    "autostart:default"
+    "fs:default"
   ]
 }

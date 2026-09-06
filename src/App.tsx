@@ -4,11 +4,6 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  disable as disableAutostart,
-  enable as enableAutostart,
-  isEnabled as isAutostartEnabled,
-} from "@tauri-apps/plugin-autostart";
-import {
   ChevronDown,
   ChevronUp,
   Folder,
@@ -1066,19 +1061,25 @@ function SettingsTab({
   onDelete: (name: string) => void;
 }) {
   const [editing, setEditing] = useState<string | "new" | null>(null);
-  const [loginStartup, setLoginStartup] = useState<boolean | null>(null);
+  const [runAtStartup, setRunAtStartup] = useState<boolean | null>(null);
   const [trayEnabled, setTrayEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
-    isAutostartEnabled().then(setLoginStartup).catch(() => setLoginStartup(false));
-    invoke<AppConfig>("get_config").then((c) => setTrayEnabled(c.show_in_tray)).catch(() => setTrayEnabled(false));
+    invoke<AppConfig>("get_config")
+      .then((c) => {
+        setRunAtStartup(c.run_at_startup);
+        setTrayEnabled(c.show_in_tray);
+      })
+      .catch(() => {
+        setRunAtStartup(false);
+        setTrayEnabled(false);
+      });
   }, []);
 
-  async function onToggleLoginStartup(next: boolean) {
+  async function onToggleRunAtStartup(next: boolean) {
     try {
-      if (next) await enableAutostart();
-      else await disableAutostart();
-      setLoginStartup(next);
+      await invoke<AppConfig>("set_run_at_startup", { enabled: next });
+      setRunAtStartup(next);
     } catch {
       // ignore
     }
@@ -1099,22 +1100,23 @@ function SettingsTab({
       <div className="mb-6 overflow-hidden rounded-lg border border-border">
         <div className="flex items-center justify-between gap-4 px-4 py-3">
           <div>
-            <p className="text-sm font-medium">Open at Login</p>
+            <p className="text-sm font-medium">Run at Startup</p>
             <p className="text-xs text-muted-foreground">
               Start Supersiftr automatically when you sign in to Windows.
             </p>
           </div>
           <Switch
-            checked={loginStartup ?? false}
-            disabled={loginStartup === null}
-            onCheckedChange={(next) => void onToggleLoginStartup(next)}
+            checked={runAtStartup ?? false}
+            disabled={runAtStartup === null}
+            onCheckedChange={(next) => void onToggleRunAtStartup(next)}
           />
         </div>
         <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-3">
           <div>
             <p className="text-sm font-medium">Show in System Tray</p>
             <p className="text-xs text-muted-foreground">
-              Keep Supersiftr running in the background when you close its window.
+              Show a tray icon for Supersiftr while it runs, so you can open
+              or quit it from the system tray.
             </p>
           </div>
           <Switch

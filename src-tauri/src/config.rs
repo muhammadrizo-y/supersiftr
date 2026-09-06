@@ -13,6 +13,7 @@ pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 pub struct AppConfig {
     pub schema_version: u32,
     pub show_in_tray: bool,
+    pub run_at_startup: bool,
 }
 
 impl Default for AppConfig {
@@ -20,6 +21,7 @@ impl Default for AppConfig {
         Self {
             schema_version: CONFIG_SCHEMA_VERSION,
             show_in_tray: true,
+            run_at_startup: false,
         }
     }
 }
