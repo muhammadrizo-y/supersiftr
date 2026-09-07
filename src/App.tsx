@@ -64,6 +64,7 @@ import type {
   RuleAction,
   Sieve,
   SieveCondition,
+  SuffixView,
   View,
 } from "@/types";
 import Sidebar from "@/components/Sidebar";
@@ -177,6 +178,47 @@ function missingKinds(sieve: Sieve, kinds: Kind[]): string[] {
 
 function isRunnable(sieve: Sieve): boolean {
   return sieve.conditions.length > 0 && sieve.actions.length > 0;
+}
+
+const DEFAULT_SUFFIXES = [
+  ".tar.gz",
+  ".tar.bz2",
+  ".tar.xz",
+  ".tar.zst",
+  ".d.ts",
+  ".test.ts",
+  ".spec.ts",
+  ".min.js",
+];
+
+type SuffixSplit = { base: string; suffix: string };
+
+/// Mirrors `suffix::split` in Rust: longest configured suffix wins, otherwise
+/// falls back to the final dot extension; a dotfile has no suffix.
+function splitSuffix(fileName: string, customSuffixes: string[]): SuffixSplit {
+  let best = "";
+  for (const s of [...DEFAULT_SUFFIXES, ...customSuffixes]) {
+    if (fileName.length > s.length && fileName.endsWith(s) && s.length > best.length) {
+      best = s;
+    }
+  }
+  if (best) return { base: fileName.slice(0, -best.length), suffix: best };
+  const i = fileName.lastIndexOf(".");
+  if (i > 0) return { base: fileName.slice(0, i), suffix: fileName.slice(i) };
+  return { base: fileName, suffix: "" };
+}
+
+function normalizeCustomSuffix(input: string, existing: string[]): string | null {
+  let s = input.trim().toLowerCase();
+  if (!s) return null;
+  if (!s.startsWith(".")) s = `.${s}`;
+  if (DEFAULT_SUFFIXES.includes(s) || existing.includes(s)) return null;
+  return s;
+}
+
+function formatRenamePreview(fileName: string, newName: string, customSuffixes: string[]) {
+  const { suffix } = splitSuffix(fileName, customSuffixes);
+  return `${newName.trim() || "…"}${suffix}`;
 }
 
 type SelectOption = { value: string; label: string };
@@ -461,6 +503,12 @@ function SieveForm({
   onCancel: () => void;
 }) {
   const [form, setForm] = useState<SieveFormState>(() => formFromSieve(initial));
+  const [customSuffixes, setCustomSuffixes] = useState<string[]>([]);
+  const [previewFile, setPreviewFile] = useState("photo.tar.gz");
+
+  useEffect(() => {
+    invoke<SuffixView>("get_suffixes").then((s) => setCustomSuffixes(s.custom)).catch(() => {});
+  }, []);
 
   const set = <K extends keyof SieveFormState>(key: K, value: SieveFormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -851,12 +899,26 @@ function SieveForm({
                     {a.type === "rename" ? "to:" : "to folder:"}
                   </span>
                   {a.type === "rename" ? (
-                    <Input
-                      value={a.name}
-                      onChange={(e) => updateAction(i, { name: e.currentTarget.value })}
-                      placeholder="report"
-                      className="flex-1"
-                    />
+                    <div className="flex flex-1 flex-col gap-1">
+                      <Input
+                        value={a.name}
+                        onChange={(e) => updateAction(i, { name: e.currentTarget.value })}
+                        placeholder="report"
+                        className="flex-1"
+                      />
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Input
+                          value={previewFile}
+                          onChange={(e) => setPreviewFile(e.currentTarget.value)}
+                          aria-label="Sample file name for preview"
+                          className="h-6 w-40 font-mono text-[11px]"
+                        />
+                        <span>→</span>
+                        <span className="font-mono">
+                          {formatRenamePreview(previewFile, a.name, customSuffixes)}
+                        </span>
+                      </div>
+                    </div>
                   ) : (
                     <>
                       <Input
@@ -899,8 +961,10 @@ function SieveForm({
             </ul>
           )}
           <p className="text-xs text-muted-foreground">
-            Rename uses a new name without the extension (kept from the file).
-            Actions run in order, each on the result of the previous one.
+            Rename replaces the file's name while keeping its suffix (the
+            recognized file ending). Compound suffixes like{" "}
+            <code>.tar.gz</code> are kept whole. Actions run in order, each on
+            the result of the previous one.
           </p>
         </div>
       </fieldset>
@@ -1102,12 +1166,21 @@ function SettingsTab({
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [runAtStartup, setRunAtStartup] = useState<boolean | null>(null);
   const [trayEnabled, setTrayEnabled] = useState<boolean | null>(null);
+  const [suffixDefaults, setSuffixDefaults] = useState<string[]>([]);
+  const [customSuffixes, setCustomSuffixes] = useState<string[]>([]);
+  const [newSuffix, setNewSuffix] = useState("");
 
   useEffect(() => {
     invoke<AppConfig>("get_config")
       .then((c) => setTrayEnabled(c.show_in_tray))
       .catch(() => setTrayEnabled(false));
     invoke<boolean>("get_run_at_startup").then(setRunAtStartup).catch(() => setRunAtStartup(false));
+    invoke<SuffixView>("get_suffixes")
+      .then((s) => {
+        setSuffixDefaults(s.defaults);
+        setCustomSuffixes(s.custom);
+      })
+      .catch(() => {});
   }, []);
 
   async function onToggleRunAtStartup(next: boolean) {
@@ -1125,6 +1198,30 @@ function SettingsTab({
       setTrayEnabled(next);
     } catch {
       // ignore
+    }
+  }
+
+  async function addCustomSuffix() {
+    const normalized = normalizeCustomSuffix(newSuffix, customSuffixes);
+    if (!normalized) {
+      toast.error("Invalid or duplicate suffix");
+      return;
+    }
+    try {
+      const updated = await invoke<string[]>("add_suffix", { suffix: normalized });
+      setCustomSuffixes(updated);
+      setNewSuffix("");
+    } catch (e) {
+      toast.error(typeof e === "string" ? e : "Failed to add suffix");
+    }
+  }
+
+  async function removeCustomSuffix(suffix: string) {
+    try {
+      const updated = await invoke<string[]>("remove_suffix", { suffix });
+      setCustomSuffixes(updated);
+    } catch (e) {
+      toast.error(typeof e === "string" ? e : "Failed to remove suffix");
     }
   }
 
@@ -1288,6 +1385,68 @@ function SettingsTab({
           )}
         </ul>
       )}
+
+      <div className="mt-8">
+        <h2 className="mb-1 text-2xl font-semibold">Rename suffixes</h2>
+        <p className="mb-4 text-xs text-muted-foreground">
+          When a rename keeps the file's ending, compound suffixes are preserved
+          as a unit. <code>.tar.gz</code> stays part of the name instead of being
+          reduced to <code>.gz</code>. Custom suffixes let you teach the app
+          endings like <code>backup.tar.xz</code>.
+        </p>
+        {suffixDefaults.length > 0 && (
+          <div className="mb-4">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              Recognized by default
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {suffixDefaults.map((s) => (
+                <Badge key={s} variant="secondary" className="px-2 py-0.5 font-mono text-xs">
+                  {s}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <Input
+            value={newSuffix}
+            onChange={(e) => setNewSuffix(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void addCustomSuffix();
+              }
+            }}
+            placeholder=".backup.tar.xz"
+            className="max-w-52"
+          />
+          <Button size="sm" variant="outline" onClick={() => void addCustomSuffix()}>
+            <Plus className="size-3.5" /> Add
+          </Button>
+        </div>
+        {customSuffixes.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">No custom suffixes.</p>
+        ) : (
+          <ul className="mt-3 flex flex-wrap gap-1.5">
+            {customSuffixes.map((s) => (
+              <li key={s}>
+                <Badge variant="outline" className="gap-1.5 px-2 py-0.5 font-mono text-xs">
+                  {s}
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => void removeCustomSuffix(s)}
+                    aria-label={`Remove ${s}`}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }

@@ -4,6 +4,7 @@ pub mod kinds;
 pub mod logging;
 pub mod sieves;
 pub mod state;
+pub mod suffix;
 pub mod watcher;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -57,6 +58,53 @@ fn set_run_at_startup(enabled: bool, app: tauri::AppHandle) -> Result<bool, Stri
     };
     result.map_err(|e| e.to_string())?;
     autolaunch.is_enabled().map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+struct SuffixView {
+    defaults: Vec<String>,
+    custom: Vec<String>,
+}
+
+#[tauri::command]
+fn get_suffixes(state: State<'_, AppState>) -> SuffixView {
+    let custom = state.suffixes.lock().unwrap().custom_suffixes.clone();
+    SuffixView {
+        defaults: suffix::DEFAULT_SUFFIXES.iter().map(|s| s.to_string()).collect(),
+        custom: suffix::all_suffixes(&custom)
+            .into_iter()
+            .filter(|s| !suffix::DEFAULT_SUFFIXES.contains(&s.as_str()))
+            .collect(),
+    }
+}
+
+#[tauri::command]
+fn add_suffix(suffix: String, app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.suffixes.lock().unwrap();
+        let Some(normalized) = suffix::normalize_custom_suffix(&suffix, &store.custom_suffixes) else {
+            return Err("Invalid or duplicate suffix".into());
+        };
+        store.custom_suffixes.push(normalized);
+        suffix::save(&store).map_err(|e| e.to_string())?;
+    }
+    Ok(get_custom_suffixes(app.state::<AppState>()))
+}
+
+#[tauri::command]
+fn remove_suffix(suffix: String, app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.suffixes.lock().unwrap();
+        store.custom_suffixes.retain(|s| s != &suffix);
+        suffix::save(&store).map_err(|e| e.to_string())?;
+    }
+    Ok(get_custom_suffixes(app.state::<AppState>()))
+}
+
+fn get_custom_suffixes(state: State<'_, AppState>) -> Vec<String> {
+    state.suffixes.lock().unwrap().custom_suffixes.clone()
 }
 
 fn set_tray_enabled(app: &tauri::AppHandle, enabled: bool) -> Result<(), String> {
@@ -378,6 +426,9 @@ pub fn run() {
             set_show_in_tray,
             get_run_at_startup,
             set_run_at_startup,
+            get_suffixes,
+            add_suffix,
+            remove_suffix,
             get_sieves,
             add_sieve,
             remove_sieve,

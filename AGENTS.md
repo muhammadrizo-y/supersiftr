@@ -50,6 +50,8 @@ keep the app running after verifying.
   - `src/lib.rs` — `#[tauri::command]`s + app setup (`run()` in `supersiftr_lib`).
   - `src/sieves.rs` — `Sieve`, `SieveCondition`, `RuleAction`, matching logic.
   - `src/actions.rs` — performs the move/copy/rename actions.
+  - `src/suffix.rs` — compound filename suffixes (`.tar.gz`), longest-match
+    split + custom suffix store in `suffixes.json`.
   - `src/config.rs` — loads/saves `config.json` (settings only).
   - `src/kinds.rs` — "kind" named extension sets (`Kind`, `KindStore`),
     default kinds + `default_kinds.json`.
@@ -87,12 +89,13 @@ keep the app running after verifying.
   Empty conditions never match; `Sieve::is_runnable` requires >=1 condition and
   >=1 action.
 - Versioning: each JSON file (`config.json`, `sieves.json`, `kinds.json`,
-  `default_kinds.json`) carries its own integer `"schema_version"` field,
-  independently maintained per file (`CONFIG_SCHEMA_VERSION`,
-  `SIEVES_SCHEMA_VERSION`, `KINDS_SCHEMA_VERSION`,
-  `DEFAULT_KINDS_SCHEMA_VERSION`, currently all 1) that only bumps on that
-  file's schema breaks. Loading is tolerant: missing/unknown versions are
-  treated as latest. Migrations (per-file version dispatch) are not
+  `default_kinds.json`, `suffixes.json`) carries its own integer
+  `"schema_version"` field, independently maintained per file
+  (`CONFIG_SCHEMA_VERSION`, `SIEVES_SCHEMA_VERSION`, `KINDS_SCHEMA_VERSION`,
+  `DEFAULT_KINDS_SCHEMA_VERSION`, `SUFFIXES_SCHEMA_VERSION`, currently all 1)
+  that only bumps on that file's schema breaks. Loading is tolerant:
+  missing/unknown versions are treated as latest. Migrations (per-file version
+  dispatch) are not
   implemented yet.
 
 ## Windows / window management

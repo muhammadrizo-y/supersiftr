@@ -6,6 +6,7 @@ use std::time::Duration;
 use thiserror::Error;
 
 use crate::sieves::RuleAction;
+use crate::suffix;
 
 const MAX_RETRIES: u32 = 5;
 const RETRY_DELAY: Duration = Duration::from_millis(200);
@@ -27,7 +28,11 @@ impl serde::Serialize for ActionError {
     }
 }
 
-pub fn execute(source: &Path, action: &RuleAction) -> Result<PathBuf, ActionError> {
+pub fn execute(
+    source: &Path,
+    action: &RuleAction,
+    custom_suffixes: &[String],
+) -> Result<PathBuf, ActionError> {
     if !source.exists() {
         return Err(ActionError::SourceNotFound(
             source.to_string_lossy().to_string(),
@@ -46,11 +51,12 @@ pub fn execute(source: &Path, action: &RuleAction) -> Result<PathBuf, ActionErro
             Ok(dest)
         }
         RuleAction::Rename { name } => {
-            let ext = source
-                .extension()
-                .map(|e| format!(".{}", e.to_string_lossy()))
+            let file_name = source
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
-            let new_name = format!("{name}{ext}");
+            let (_, suffix_str) = suffix::split(&file_name, custom_suffixes);
+            let new_name = format!("{name}{suffix_str}");
             let dest = source.with_file_name(&new_name);
             retry(|| fs::rename(source, &dest))?;
             Ok(dest)
@@ -149,6 +155,7 @@ mod tests {
             &RuleAction::Move {
                 folder: dest_dir.to_string_lossy().to_string(),
             },
+            &[],
         );
         assert!(result.is_ok());
         assert!(result.unwrap() == dest_dir.join("a.txt"));
@@ -168,6 +175,7 @@ mod tests {
             &RuleAction::Copy {
                 folder: dest_dir.to_string_lossy().to_string(),
             },
+            &[],
         );
         assert!(result.is_ok());
         assert!(src.exists());
@@ -180,7 +188,7 @@ mod tests {
         let src = dir.join("a.txt");
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { name: "new".into() });
+        let result = execute(&src, &RuleAction::Rename { name: "new".into() }, &[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("new.txt"));
         assert!(dir.join("new.txt").exists());
@@ -193,10 +201,36 @@ mod tests {
         let src = dir.join("photo.tar.gz");
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { name: "album".into() });
+        let result = execute(&src, &RuleAction::Rename { name: "album".into() }, &[]);
+        // .tar.gz is a recognized compound suffix, so the full suffix is kept.
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), dir.join("album.gz"));
-        assert!(dir.join("album.gz").exists());
+        assert_eq!(result.unwrap(), dir.join("album.tar.gz"));
+        assert!(dir.join("album.tar.gz").exists());
+    }
+
+    #[test]
+    fn rename_preserves_custom_compound_suffix() {
+        let dir = temp_dir("rename_custom");
+        let src = dir.join("index.test.ts");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(&src, &RuleAction::Rename { name: "router".into() }, &[".test.ts".into()]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.join("router.test.ts"));
+        assert!(dir.join("router.test.ts").exists());
+    }
+
+    #[test]
+    fn rename_drops_unrecognized_intermediate_extension() {
+        let dir = temp_dir("rename_other");
+        let src = dir.join("report.final.pdf");
+        fs::write(&src, "hello").unwrap();
+
+        // .pdf is the only recognized suffix here; .final is part of the name.
+        let result = execute(&src, &RuleAction::Rename { name: "final".into() }, &[]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.join("final.pdf"));
+        assert!(dir.join("final.pdf").exists());
     }
 
     #[test]
@@ -207,11 +241,11 @@ mod tests {
         fs::create_dir_all(&dest_dir).unwrap();
         fs::write(&src, "hello").unwrap();
 
-        let renamed = execute(&src, &RuleAction::Rename { name: "b".into() }).unwrap();
+        let renamed = execute(&src, &RuleAction::Rename { name: "b".into() }, &[]).unwrap();
         assert_eq!(renamed, dir.join("b.txt"));
         let moved = execute(&renamed, &RuleAction::Move {
             folder: dest_dir.to_string_lossy().to_string(),
-        })
+        }, &[])
         .unwrap();
         assert_eq!(moved, dest_dir.join("b.txt"));
         assert!(dest_dir.join("b.txt").exists());
@@ -228,12 +262,12 @@ mod tests {
 
         let copy = execute(&src, &RuleAction::Copy {
             folder: dest_dir.to_string_lossy().to_string(),
-        })
+        }, &[])
         .unwrap();
         assert_eq!(copy, dest_dir.join("a.txt"));
         assert!(src.exists());
 
-        let renamed = execute(&copy, &RuleAction::Rename { name: "b".into() }).unwrap();
+        let renamed = execute(&copy, &RuleAction::Rename { name: "b".into() }, &[]).unwrap();
         assert_eq!(renamed, dest_dir.join("b.txt"));
         assert!(dest_dir.join("b.txt").exists());
         assert!(dest_dir.join("a.txt").exists() == false);
@@ -244,7 +278,7 @@ mod tests {
         let dir = temp_dir("source_err");
         let src = dir.join("nope.txt");
 
-        let result = execute(&src, &RuleAction::Rename { name: "x".into() });
+        let result = execute(&src, &RuleAction::Rename { name: "x".into() }, &[]);
         assert!(matches!(result, Err(ActionError::SourceNotFound(_))));
     }
 }

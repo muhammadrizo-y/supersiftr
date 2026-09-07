@@ -44,6 +44,11 @@ export type AppConfig = {
   show_in_tray: boolean;
 };
 
+export type SuffixView = {
+  defaults: string[];
+  custom: string[];
+};
+
 export type ActivityEntry = {
   id: number;
   message: string;

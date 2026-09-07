@@ -7,6 +7,7 @@ use crate::config::{self, AppConfig};
 use crate::kinds::{self, KindStore};
 use crate::logging::ActivityLog;
 use crate::sieves::{self, RuleAction, Sieve, SieveStore};
+use crate::suffix::{self, SuffixStore};
 use crate::watcher::FileWatcher;
 
 pub struct AppState {
@@ -14,6 +15,7 @@ pub struct AppState {
     pub config: Mutex<AppConfig>,
     pub sieves: Mutex<SieveStore>,
     pub kinds: Mutex<KindStore>,
+    pub suffixes: Mutex<SuffixStore>,
     pub log: ActivityLog,
     pub tray: Mutex<Option<tauri::tray::TrayIcon>>,
 }
@@ -26,6 +28,7 @@ impl AppState {
             config: Mutex::new(config::load().unwrap_or_default()),
             sieves: Mutex::new(sieves::load().unwrap_or_default()),
             kinds: Mutex::new(kinds::load().unwrap_or_default()),
+            suffixes: Mutex::new(suffix::load().unwrap_or_default()),
             log: ActivityLog::new(config_dir),
             tray: Mutex::new(None),
         }
@@ -76,10 +79,11 @@ impl AppState {
     /// Skips files that no longer exist (already handled by a prior event).
     pub fn process(app: tauri::AppHandle, path: std::path::PathBuf) {
         let state = app.state::<AppState>();
-        let (sieves, kinds) = {
+        let (sieves, kinds, custom_suffixes) = {
             let sieves = state.sieves.lock().unwrap();
             let kinds = state.kinds.lock().unwrap();
-            (sieves.sieves.clone(), kinds.kinds.clone())
+            let suffixes = state.suffixes.lock().unwrap();
+            (sieves.sieves.clone(), kinds.kinds.clone(), suffixes.custom_suffixes.clone())
         };
 
         if !path.is_file() {
@@ -96,7 +100,7 @@ impl AppState {
             if sieve.matches(&path, &kinds) {
                 let mut current = path.to_owned();
                 for action in &sieve.actions {
-                    match actions::execute(&current, action) {
+                    match actions::execute(&current, action, &custom_suffixes) {
                         Ok(dest) => {
                             let verb = action_verb(action);
                             state.log.write(
