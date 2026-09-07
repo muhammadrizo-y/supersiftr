@@ -7,7 +7,7 @@ use glob::Pattern;
 use serde::{Deserialize, Serialize};
 
 use crate::config::{config_dir, ConfigError};
-use crate::presets::Preset;
+use crate::kinds::Kind;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -47,22 +47,22 @@ pub struct SieveCondition {
 
 impl SieveCondition {
     /// Resolves the extension set this condition matches against, depending on
-    /// property: kind preset ids expand to their preset extensions; extension
+    /// property: kind ids expand to their kind extensions; extension
     /// values are used as-is; other properties yield an empty set. Values are
     /// lowercased and deduplicated.
-    fn target_extensions(&self, presets: &[Preset]) -> HashSet<String> {
+    fn target_extensions(&self, kinds: &[Kind]) -> HashSet<String> {
         let mut set: HashSet<String> = HashSet::new();
         match self.property {
             SieveProperty::Kind => {
                 for id in &self.values {
-                    if let Some(preset) = presets.iter().find(|p| &p.name == id) {
+                    if let Some(kind) = kinds.iter().find(|p| &p.name == id) {
                         // Disabled kinds are inactive: they contribute no
                         // extensions (matching nothing for `is`, everything
-                        // for `is_not`), like missing presets.
-                        if !preset.enabled {
+                        // for `is_not`), like missing kinds.
+                        if !kind.enabled {
                             continue;
                         }
-                        for ext in &preset.extensions {
+                        for ext in &kind.extensions {
                             set.insert(ext.to_lowercase());
                         }
                     }
@@ -78,7 +78,7 @@ impl SieveCondition {
         set
     }
 
-    pub fn matches(&self, path: &Path, presets: &[Preset]) -> bool {
+    pub fn matches(&self, path: &Path, kinds: &[Kind]) -> bool {
         let file_name = match path.file_name().and_then(|n| n.to_str()) {
             Some(name) => name,
             None => return false,
@@ -86,9 +86,9 @@ impl SieveCondition {
 
         match self.property {
             SieveProperty::Kind | SieveProperty::Extension => {
-                let exts = self.target_extensions(presets);
+                let exts = self.target_extensions(kinds);
                 // No resolvable extensions: `is` matches nothing, `is_not`
-                // matches everything (covers missing kind presets).
+                // matches everything (covers missing kinds).
                 let hit = !exts.is_empty()
                     && path
                         .extension()
@@ -183,17 +183,17 @@ impl Sieve {
         false
     }
 
-    /// Kind preset ids referenced by any `kind` condition with no matching
-    /// preset. Used to warn the user; such conditions just match nothing (or
+    /// Kind ids referenced by any `kind` condition with no matching kind.
+    /// Used to warn the user; such conditions just match nothing (or
     /// everything for `is_not`) rather than breaking the sieve.
-    pub fn missing_kinds(&self, presets: &[Preset]) -> Vec<String> {
+    pub fn missing_kinds(&self, kinds: &[Kind]) -> Vec<String> {
         let mut missing: Vec<String> = Vec::new();
         for condition in &self.conditions {
             if condition.property != SieveProperty::Kind {
                 continue;
             }
             for id in &condition.values {
-                if !presets.iter().any(|p| &p.name == id) && !missing.contains(id) {
+                if !kinds.iter().any(|p| &p.name == id) && !missing.contains(id) {
                     missing.push(id.clone());
                 }
             }
@@ -207,11 +207,11 @@ impl Sieve {
         !self.conditions.is_empty() && !self.actions.is_empty()
     }
 
-    pub fn matches(&self, path: &Path, presets: &[Preset]) -> bool {
+    pub fn matches(&self, path: &Path, kinds: &[Kind]) -> bool {
         if self.conditions.is_empty() {
             return false;
         }
-        let mut results = self.conditions.iter().map(|c| c.matches(path, presets));
+        let mut results = self.conditions.iter().map(|c| c.matches(path, kinds));
         match self.mode {
             SieveMode::All => results.all(|m| m),
             SieveMode::Any => results.any(|m| m),
@@ -265,8 +265,8 @@ pub fn save(store: &SieveStore) -> Result<(), ConfigError> {
 mod tests {
     use super::*;
 
-    fn preset(name: &str, exts: &[&str]) -> Preset {
-        Preset {
+    fn kind(name: &str, exts: &[&str]) -> Kind {
+        Kind {
             name: name.into(),
             title: name.into(),
             extensions: exts.iter().map(|s| s.to_string()).collect(),
@@ -364,13 +364,13 @@ mod tests {
             ],
             actions: Vec::new(),
         };
-        let presets = vec![preset("movie", &["mp4", "mov"])];
+        let kinds = vec![kind("movie", &["mp4", "mov"])];
         // Kind matches even though name does not.
-        assert!(s.matches(Path::new("clip.mp4"), &presets));
+        assert!(s.matches(Path::new("clip.mp4"), &kinds));
         // Name matches even though kind does not.
-        assert!(s.matches(Path::new("myphoto.jpg"), &presets));
+        assert!(s.matches(Path::new("myphoto.jpg"), &kinds));
         // Neither matches.
-        assert!(!s.matches(Path::new("stuff.txt"), &presets));
+        assert!(!s.matches(Path::new("stuff.txt"), &kinds));
     }
 
     #[test]
@@ -397,7 +397,7 @@ mod tests {
     fn missing_kinds_are_reported() {
         let s = sieve(vec![kind_condition(SieveOperator::Is, vec!["gone".into()])], Vec::new());
         assert_eq!(s.missing_kinds(&[]), vec!["gone"]);
-        assert!(s.missing_kinds(&[preset("gone", &["mp4"])]).is_empty());
+        assert!(s.missing_kinds(&[kind("gone", &["mp4"])]).is_empty());
     }
 
     #[test]
@@ -406,11 +406,11 @@ mod tests {
             vec![kind_condition(SieveOperator::Is, vec!["movie".into()])],
             Vec::new(),
         );
-        let mut movie = preset("movie", &["mp4", "mov"]);
+        let mut movie = kind("movie", &["mp4", "mov"]);
         movie.enabled = false;
         // The kind exists but is disabled, so it matches nothing...
         assert!(!s.matches(Path::new("clip.mp4"), &[movie.clone()]));
-        // ...and `is_not` matches everything (like a missing preset).
+        // ...and `is_not` matches everything (like a missing kind).
         let s2 = sieve(
             vec![kind_condition(SieveOperator::IsNot, vec!["movie".into()])],
             Vec::new(),

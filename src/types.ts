@@ -31,7 +31,7 @@ export type Sieve = {
   actions: RuleAction[];
 };
 
-export type Preset = {
+export type Kind = {
   name: string;
   title: string;
   extensions: string[];

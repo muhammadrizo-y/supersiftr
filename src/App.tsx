@@ -60,7 +60,7 @@ import type {
   ConditionMode,
   ConditionOperator,
   ConditionProperty,
-  Preset,
+  Kind,
   RuleAction,
   Sieve,
   SieveCondition,
@@ -136,14 +136,14 @@ async function pickFolder(): Promise<string | null> {
   return typeof selected === "string" ? selected : null;
 }
 
-function presetByTitle(presets: Preset[], key: string): string {
-  const p = presets.find((x) => x.name === key);
-  return p ? p.title : key;
+function kindByTitle(kinds: Kind[], key: string): string {
+  const k = kinds.find((x) => x.name === key);
+  return k ? k.title : key;
 }
 
-function allKnownExtensions(presets: Preset[]): string[] {
+function allKnownExtensions(kinds: Kind[]): string[] {
   const set = new Set<string>();
-  for (const p of presets) for (const e of p.extensions) set.add(e.toLowerCase());
+  for (const k of kinds) for (const e of k.extensions) set.add(e.toLowerCase());
   return Array.from(set).sort();
 }
 
@@ -164,12 +164,12 @@ function fileTypeIcon(value: string) {
   return File;
 }
 
-function missingKinds(sieve: Sieve, presets: Preset[]): string[] {
+function missingKinds(sieve: Sieve, kinds: Kind[]): string[] {
   const set = new Set<string>();
   for (const c of sieve.conditions) {
     if (c.property !== "kind") continue;
     for (const v of c.values) {
-      if (!presets.some((p) => p.name === v)) set.add(v);
+      if (!kinds.some((k) => k.name === v)) set.add(v);
     }
   }
   return Array.from(set);
@@ -450,12 +450,12 @@ function formFromSieve(sieve?: Sieve): SieveFormState {
 }
 
 function SieveForm({
-  presets,
+  kinds,
   initial,
   onSubmit,
   onCancel,
 }: {
-  presets: Preset[];
+  kinds: Kind[];
   initial?: Sieve;
   onSubmit: (sieve: Sieve) => void;
   onCancel: () => void;
@@ -549,13 +549,13 @@ function SieveForm({
     });
   }
 
-  const kindOptions: SelectOption[] = presets
-    .filter((p) => p.enabled)
-    .map((p) => ({
-      value: p.name,
-      label: p.title,
+  const kindOptions: SelectOption[] = kinds
+    .filter((k) => k.enabled)
+    .map((k) => ({
+      value: k.name,
+      label: k.title,
     }));
-  const extOptions: SelectOption[] = allKnownExtensions(presets).map((e) => ({
+  const extOptions: SelectOption[] = allKnownExtensions(kinds).map((e) => ({
     value: e,
     label: e,
   }));
@@ -915,9 +915,9 @@ function SieveForm({
   );
 }
 
-function describeCondition(c: SieveCondition, presets: Preset[]): string {
+function describeCondition(c: SieveCondition, kinds: Kind[]): string {
   const values = c.values
-    .map((v) => (c.property === "kind" ? presetByTitle(presets, v) : v))
+    .map((v) => (c.property === "kind" ? kindByTitle(kinds, v) : v))
     .join(", ");
   switch (c.property) {
     case "kind":
@@ -931,9 +931,9 @@ function describeCondition(c: SieveCondition, presets: Preset[]): string {
   }
 }
 
-function describeConditions(sieve: Sieve, presets: Preset[]): string {
+function describeConditions(sieve: Sieve, kinds: Kind[]): string {
   if (sieve.conditions.length === 0) return "any file";
-  const parts = sieve.conditions.map((c) => describeCondition(c, presets));
+  const parts = sieve.conditions.map((c) => describeCondition(c, kinds));
   return sieve.mode === "all" ? parts.join(" and ") : parts.join(" or ");
 }
 
@@ -1002,15 +1002,15 @@ function WindowControls() {
   );
 }
 
-function PresetForm({
-  presets,
+function KindForm({
+  kinds,
   initial,
   onSave,
   onCancel,
 }: {
-  presets: Preset[];
-  initial?: Preset;
-  onSave: (preset: Preset) => void;
+  kinds: Kind[];
+  initial?: Kind;
+  onSave: (kind: Kind) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
@@ -1018,7 +1018,7 @@ function PresetForm({
   const [extensions, setExtensions] = useState<string[]>(initial?.extensions ?? []);
   const [extTouched, setExtTouched] = useState(false);
 
-  const extOptions: SelectOption[] = allKnownExtensions(presets).map((e) => ({
+  const extOptions: SelectOption[] = allKnownExtensions(kinds).map((e) => ({
     value: e,
     label: e,
   }));
@@ -1038,9 +1038,9 @@ function PresetForm({
       }}
     >
       <div className="space-y-1.5">
-        <Label htmlFor="preset-name">Name (id) *</Label>
+        <Label htmlFor="kind-name">Name (id) *</Label>
         <Input
-          id="preset-name"
+          id="kind-name"
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
           placeholder="movie"
@@ -1049,9 +1049,9 @@ function PresetForm({
         />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="preset-title">Title *</Label>
+        <Label htmlFor="kind-title">Title *</Label>
         <Input
-          id="preset-title"
+          id="kind-title"
           value={title}
           onChange={(e) => setTitle(e.currentTarget.value)}
           placeholder="Movie"
@@ -1085,16 +1085,16 @@ function PresetForm({
 }
 
 function SettingsTab({
-  presets,
+  kinds,
   onAdd,
   onUpdate,
   onDelete,
   onToggleEnabled,
   onReset,
 }: {
-  presets: Preset[];
-  onAdd: (preset: Preset) => void;
-  onUpdate: (preset: Preset) => void;
+  kinds: Kind[];
+  onAdd: (kind: Kind) => void;
+  onUpdate: (kind: Kind) => void;
   onDelete: (name: string) => void;
   onToggleEnabled: (name: string, enabled: boolean) => void;
   onReset: (name: string) => void;
@@ -1148,7 +1148,7 @@ function SettingsTab({
         <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-3">
           <div>
             <p className="text-sm font-medium">Show in System Tray</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs leading-relaxed text-muted-foreground">
               Show a tray icon for Supersiftr while it runs, so you can open
               or quit it from the system tray.
             </p>
@@ -1173,28 +1173,28 @@ function SettingsTab({
       </p>
 
       {editing === "new" && (
-        <PresetForm
-          presets={presets}
-          onSave={(preset) => {
-            onAdd(preset);
+        <KindForm
+          kinds={kinds}
+          onSave={(kind) => {
+            onAdd(kind);
             setEditing(null);
           }}
           onCancel={() => setEditing(null)}
         />
       )}
 
-      {presets.length === 0 ? (
+      {kinds.length === 0 ? (
         <p className="text-sm text-muted-foreground">No kinds yet.</p>
       ) : (
         <ul className="space-y-2">
-          {presets.map((p) =>
-            editing === p.name ? (
-              <li key={p.name}>
-                <PresetForm
-                  presets={presets}
-                  initial={p}
-                  onSave={(preset) => {
-                    onUpdate(preset);
+          {kinds.map((k) =>
+            editing === k.name ? (
+              <li key={k.name}>
+                <KindForm
+                  kinds={kinds}
+                  initial={k}
+                  onSave={(kind) => {
+                    onUpdate(kind);
                     setEditing(null);
                   }}
                   onCancel={() => setEditing(null)}
@@ -1202,77 +1202,87 @@ function SettingsTab({
               </li>
             ) : (
               <li
-                key={p.name}
+                key={k.name}
                 className={cn(
                   "rounded-lg border border-border px-4 py-3",
-                  !p.enabled && "opacity-50",
+                  !k.enabled && "opacity-50",
                 )}
               >
-                <div className="flex items-center gap-2">
-                  <strong className="text-sm font-medium">{p.title}</strong>
-                  {p.is_default && <Badge variant="secondary">Default</Badge>}
-                  <span className="text-xs text-muted-foreground">{p.name}</span>
-                  <div className="ml-auto flex items-center gap-1">
-                    {p.is_default ? (
-                      <>
-                        <Switch
-                          checked={p.enabled}
-                          onCheckedChange={(next) => onToggleEnabled(p.name, next)}
-                        />
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button size="icon" variant="ghost" className="size-8">
-                                <EllipsisVertical className="size-4" />
-                              </Button>
-                            }
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <strong className="text-sm font-medium">{k.title}</strong>
+                    <span className="text-xs text-muted-foreground">{k.name}</span>
+                    <div className="ml-auto flex items-center gap-1">
+                      {k.is_default ? (
+                        <>
+                          <Switch
+                            checked={k.enabled}
+                            onCheckedChange={(next) => onToggleEnabled(k.name, next)}
                           />
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => onReset(p.name)}>
-                              <Undo2 />
-                              Reset
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </>
-                    ) : (
-                      <>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setEditing(p.name)}
-                              >
-                                <Pencil className="size-3.5" />
-                              </Button>
-                            }
-                          />
-                          <TooltipContent>Edit</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                onClick={() => onDelete(p.name)}
-                              >
-                                <Trash2 className="size-3.5" />
-                              </Button>
-                            }
-                          />
-                          <TooltipContent>Delete</TooltipContent>
-                        </Tooltip>
-                      </>
-                    )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button size="icon" variant="ghost" className="size-8">
+                                  <EllipsisVertical className="size-4" />
+                                </Button>
+                              }
+                            />
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setEditing(k.name)}>
+                                <Pencil />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onReset(k.name)}>
+                                <Undo2 />
+                                Reset
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </>
+                      ) : (
+                        <>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditing(k.name)}
+                                >
+                                  <Pencil className="size-3.5" />
+                                </Button>
+                              }
+                            />
+                            <TooltipContent>Edit</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  onClick={() => onDelete(k.name)}
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              }
+                            />
+                            <TooltipContent>Delete</TooltipContent>
+                          </Tooltip>
+                        </>
+                      )}
+                    </div>
                   </div>
+                  <p className="select-text text-xs text-muted-foreground">
+                    {k.extensions.join(", ") || "no extensions"}
+                  </p>
+                  {k.is_default && (
+                    <div className="mt-auto">
+                      <Badge variant="secondary">Default kind</Badge>
+                    </div>
+                  )}
                 </div>
-                <p className="mt-1 select-text text-xs text-muted-foreground">
-                  {p.extensions.join(", ") || "no extensions"}
-                </p>
               </li>
             ),
           )}
@@ -1284,7 +1294,7 @@ function SettingsTab({
 
 function App() {
   const [sieves, setSieves] = useState<Sieve[]>([]);
-  const [presets, setPresets] = useState<Preset[]>([]);
+  const [kinds, setKinds] = useState<Kind[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [view, setView] = useState<View>({ kind: "new" });
 
@@ -1297,7 +1307,7 @@ function App() {
       setSieves(sieves);
       setView(sieves.length ? { kind: "sieve", index: 0 } : { kind: "new" });
     });
-    invoke<Preset[]>("get_presets").then(setPresets);
+    invoke<Kind[]>("get_kinds").then(setKinds);
     invoke<string[]>("get_logs", { count: 200 }).then((logs) =>
       setActivity(logs.map((l, i) => ({ id: i, message: l, level: "info" }))),
     );
@@ -1348,36 +1358,36 @@ function App() {
     toast.success(`Sieve "${sieve.name}" updated`);
   }
 
-  async function addPreset(preset: Preset) {
-    const updated = await invoke<Preset[]>("add_preset", { preset });
-    setPresets(updated);
-    toast.success(`Kind "${preset.title}" created`);
+  async function addKind(kind: Kind) {
+    const updated = await invoke<Kind[]>("add_kind", { kind });
+    setKinds(updated);
+    toast.success(`Kind "${kind.title}" created`);
   }
 
-  async function updatePreset(preset: Preset) {
-    const updated = await invoke<Preset[]>("update_preset", { preset });
-    setPresets(updated);
+  async function updateKind(kind: Kind) {
+    const updated = await invoke<Kind[]>("update_kind", { kind });
+    setKinds(updated);
   }
 
-  async function deletePreset(name: string) {
-    const updated = await invoke<Preset[]>("delete_preset", { name });
-    setPresets(updated);
+  async function deleteKind(name: string) {
+    const updated = await invoke<Kind[]>("delete_kind", { name });
+    setKinds(updated);
     log(`Deleted kind: ${name}`);
     toast.success(`Kind "${name}" deleted`);
   }
 
-  async function togglePresetEnabled(name: string, enabled: boolean) {
-    const updated = await invoke<Preset[]>("set_preset_enabled", { name, enabled });
-    setPresets(updated);
+  async function toggleKindEnabled(name: string, enabled: boolean) {
+    const updated = await invoke<Kind[]>("set_kind_enabled", { name, enabled });
+    setKinds(updated);
   }
 
   async function resetKind(name: string) {
-    const updated = await invoke<Preset[]>("reset_kind", { name });
-    setPresets(updated);
+    const updated = await invoke<Kind[]>("reset_kind", { name });
+    setKinds(updated);
   }
 
   function renderSieveDetail(sieve: Sieve, index: number) {
-    const missing = missingKinds(sieve, presets);
+    const missing = missingKinds(sieve, kinds);
     return (
       <section className="px-6 py-5">
         {missing.length > 0 && (
@@ -1385,7 +1395,7 @@ function App() {
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <span>
               Missing kind{missing.length > 1 ? "s" : ""}:{" "}
-              {missing.map((m) => presetByTitle(presets, m)).join(", ")}.
+              {missing.map((m) => kindByTitle(kinds, m)).join(", ")}.
               This kind does not exist.
             </span>
           </div>
@@ -1425,7 +1435,7 @@ function App() {
             </ul>
           </dd>
           <dt className="text-muted-foreground">Match</dt>
-          <dd>{describeConditions(sieve, presets)}</dd>
+          <dd>{describeConditions(sieve, kinds)}</dd>
           <dt className="text-muted-foreground">Action</dt>
           <dd>{describeActions(sieve.actions)}</dd>
         </dl>
@@ -1439,7 +1449,7 @@ function App() {
         <section className="px-6 py-5">
           <h2 className="mb-4 text-2xl font-semibold">New sieve</h2>
           <SieveForm
-            presets={presets}
+            kinds={kinds}
             onSubmit={addSieve}
             onCancel={() =>
               setView(
@@ -1482,11 +1492,11 @@ function App() {
     if (view.kind === "settings") {
       return (
         <SettingsTab
-          presets={presets}
-          onAdd={addPreset}
-          onUpdate={updatePreset}
-          onDelete={deletePreset}
-          onToggleEnabled={togglePresetEnabled}
+          kinds={kinds}
+          onAdd={addKind}
+          onUpdate={updateKind}
+          onDelete={deleteKind}
+          onToggleEnabled={toggleKindEnabled}
           onReset={resetKind}
         />
       );
@@ -1507,7 +1517,7 @@ function App() {
           <h2 className="mb-4 text-2xl font-semibold">Edit sieve</h2>
           <SieveForm
             key={view.index}
-            presets={presets}
+            kinds={kinds}
             initial={sieve}
             onSubmit={(updated) => void updateSieve(view.index, updated)}
             onCancel={() => setView({ kind: "sieve", index: view.index })}

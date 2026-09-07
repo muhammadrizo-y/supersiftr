@@ -4,8 +4,8 @@ use tauri::Manager;
 
 use crate::actions;
 use crate::config::{self, AppConfig};
+use crate::kinds::{self, KindStore};
 use crate::logging::ActivityLog;
-use crate::presets::{self, PresetStore};
 use crate::sieves::{self, RuleAction, Sieve, SieveStore};
 use crate::watcher::FileWatcher;
 
@@ -13,7 +13,7 @@ pub struct AppState {
     pub watcher: Mutex<FileWatcher>,
     pub config: Mutex<AppConfig>,
     pub sieves: Mutex<SieveStore>,
-    pub presets: Mutex<PresetStore>,
+    pub kinds: Mutex<KindStore>,
     pub log: ActivityLog,
     pub tray: Mutex<Option<tauri::tray::TrayIcon>>,
 }
@@ -25,7 +25,7 @@ impl AppState {
             watcher: Mutex::new(FileWatcher::new()),
             config: Mutex::new(config::load().unwrap_or_default()),
             sieves: Mutex::new(sieves::load().unwrap_or_default()),
-            presets: Mutex::new(presets::load().unwrap_or_default()),
+            kinds: Mutex::new(kinds::load().unwrap_or_default()),
             log: ActivityLog::new(config_dir),
             tray: Mutex::new(None),
         }
@@ -76,10 +76,10 @@ impl AppState {
     /// Skips files that no longer exist (already handled by a prior event).
     pub fn process(app: tauri::AppHandle, path: std::path::PathBuf) {
         let state = app.state::<AppState>();
-        let (sieves, presets) = {
+        let (sieves, kinds) = {
             let sieves = state.sieves.lock().unwrap();
-            let presets = state.presets.lock().unwrap();
-            (sieves.sieves.clone(), presets.presets.clone())
+            let kinds = state.kinds.lock().unwrap();
+            (sieves.sieves.clone(), kinds.kinds.clone())
         };
 
         if !path.is_file() {
@@ -93,7 +93,7 @@ impl AppState {
             if !sieve.is_runnable() {
                 continue;
             }
-            if sieve.matches(&path, &presets) {
+            if sieve.matches(&path, &kinds) {
                 let mut current = path.to_owned();
                 for action in &sieve.actions {
                     match actions::execute(&current, action) {

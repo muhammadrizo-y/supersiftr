@@ -1,7 +1,7 @@
 pub mod actions;
 pub mod config;
+pub mod kinds;
 pub mod logging;
-pub mod presets;
 pub mod sieves;
 pub mod state;
 pub mod watcher;
@@ -12,7 +12,7 @@ use tauri::{Emitter, Manager, State, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::config::AppConfig;
-use crate::presets::Preset;
+use crate::kinds::Kind;
 use crate::sieves::Sieve;
 use crate::state::AppState;
 
@@ -208,110 +208,105 @@ fn get_sieves(state: State<'_, AppState>) -> Vec<Sieve> {
     state.sieves.lock().unwrap().sieves.clone()
 }
 
-fn get_preset_list(state: State<'_, AppState>) -> Vec<Preset> {
-    state.presets.lock().unwrap().presets.clone()
+fn get_kind_list(state: State<'_, AppState>) -> Vec<Kind> {
+    state.kinds.lock().unwrap().kinds.clone()
 }
 
 #[tauri::command]
-fn get_presets(state: State<'_, AppState>) -> Vec<Preset> {
-    get_preset_list(state)
+fn get_kinds(state: State<'_, AppState>) -> Vec<Kind> {
+    get_kind_list(state)
 }
 
 #[tauri::command]
-fn add_preset(preset: Preset, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
-    let mut preset = preset;
-    preset.enabled = true;
-    preset.is_default = false;
+fn add_kind(kind: Kind, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
+    let mut kind = kind;
+    kind.enabled = true;
+    kind.is_default = false;
     {
         let state = app.state::<AppState>();
-        let mut store = state.presets.lock().unwrap();
-        if store.presets.iter().any(|p| p.name == preset.name) {
-            return Err(presets::PresetError::Duplicate.to_string());
+        let mut store = state.kinds.lock().unwrap();
+        if store.kinds.iter().any(|p| p.name == kind.name) {
+            return Err(kinds::KindError::Duplicate.to_string());
         }
-        store.presets.push(preset);
-        presets::save(&store).map_err(|e| e.to_string())?;
+        store.kinds.push(kind);
+        kinds::save(&store).map_err(|e| e.to_string())?;
     }
-    Ok(get_preset_list(app.state::<AppState>()))
+    Ok(get_kind_list(app.state::<AppState>()))
 }
 
 #[tauri::command]
-fn update_preset(preset: Preset, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
+fn update_kind(kind: Kind, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
     {
         let state = app.state::<AppState>();
-        let mut store = state.presets.lock().unwrap();
+        let mut store = state.kinds.lock().unwrap();
         match store
-            .presets
+            .kinds
             .iter_mut()
-            .find(|p| p.name == preset.name)
+            .find(|p| p.name == kind.name)
         {
-            Some(existing) => {
-                if existing.is_default {
-                    return Err("Default kinds can't be edited".into());
-                }
-                *existing = preset;
-            }
-            None => return Err(presets::PresetError::NotFound.to_string()),
+            Some(existing) => *existing = kind,
+            None => return Err(kinds::KindError::NotFound.to_string()),
         }
-        presets::save(&store).map_err(|e| e.to_string())?;
+        kinds::save(&store).map_err(|e| e.to_string())?;
     }
-    Ok(get_preset_list(app.state::<AppState>()))
+    Ok(get_kind_list(app.state::<AppState>()))
 }
 
 #[tauri::command]
-fn delete_preset(name: String, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
+fn delete_kind(name: String, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
     {
         let state = app.state::<AppState>();
-        let mut store = state.presets.lock().unwrap();
-        if let Some(existing) = store.presets.iter().find(|p| p.name == name) {
+        let mut store = state.kinds.lock().unwrap();
+        if let Some(existing) = store.kinds.iter().find(|p| p.name == name) {
             if existing.is_default {
                 return Err("Default kinds can't be deleted".into());
             }
         }
-        let before = store.presets.len();
-        store.presets.retain(|p| p.name != name);
-        if store.presets.len() == before {
-            return Err(presets::PresetError::NotFound.to_string());
+        let before = store.kinds.len();
+        store.kinds.retain(|p| p.name != name);
+        if store.kinds.len() == before {
+            return Err(kinds::KindError::NotFound.to_string());
         }
-        presets::save(&store).map_err(|e| e.to_string())?;
+        kinds::save(&store).map_err(|e| e.to_string())?;
     }
-    Ok(get_preset_list(app.state::<AppState>()))
+    Ok(get_kind_list(app.state::<AppState>()))
 }
 
 #[tauri::command]
-fn set_preset_enabled(name: String, enabled: bool, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
+fn set_kind_enabled(name: String, enabled: bool, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
     {
         let state = app.state::<AppState>();
-        let mut store = state.presets.lock().unwrap();
-        match store.presets.iter_mut().find(|p| p.name == name) {
+        let mut store = state.kinds.lock().unwrap();
+        match store.kinds.iter_mut().find(|p| p.name == name) {
             Some(existing) => existing.enabled = enabled,
-            None => return Err(presets::PresetError::NotFound.to_string()),
+            None => return Err(kinds::KindError::NotFound.to_string()),
         }
-        presets::save(&store).map_err(|e| e.to_string())?;
+        kinds::save(&store).map_err(|e| e.to_string())?;
     }
-    Ok(get_preset_list(app.state::<AppState>()))
+    Ok(get_kind_list(app.state::<AppState>()))
 }
 
 #[tauri::command]
-fn reset_kind(name: String, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
-    let defaults = presets::load_defaults().map_err(|e| e.to_string())?;
-    let Some(default_preset) = defaults.iter().find(|p| p.name == name) else {
+fn reset_kind(name: String, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
+    let defaults = kinds::load_defaults().map_err(|e| e.to_string())?;
+    let Some(default_kind) = defaults.iter().find(|p| p.name == name) else {
         return Err(format!("No default kind named \"{name}\""));
     };
     {
         let state = app.state::<AppState>();
-        let mut store = state.presets.lock().unwrap();
-        match store.presets.iter_mut().find(|p| p.name == name) {
+        let mut store = state.kinds.lock().unwrap();
+        match store.kinds.iter_mut().find(|p| p.name == name) {
             Some(existing) => {
-                existing.title = default_preset.title.clone();
-                existing.extensions = default_preset.extensions.clone();
+                existing.title = default_kind.title.clone();
+                existing.extensions = default_kind.extensions.clone();
                 existing.enabled = true;
                 existing.is_default = true;
             }
-            None => return Err(presets::PresetError::NotFound.to_string()),
+            None => return Err(kinds::KindError::NotFound.to_string()),
         }
-        presets::save(&store).map_err(|e| e.to_string())?;
+        kinds::save(&store).map_err(|e| e.to_string())?;
     }
-    Ok(get_preset_list(app.state::<AppState>()))
+    Ok(get_kind_list(app.state::<AppState>()))
 }
 
 #[tauri::command]
@@ -389,11 +384,11 @@ pub fn run() {
             update_sieve,
             get_logs,
             get_log_path,
-            get_presets,
-            add_preset,
-            update_preset,
-            delete_preset,
-            set_preset_enabled,
+            get_kinds,
+            add_kind,
+            update_kind,
+            delete_kind,
+            set_kind_enabled,
             reset_kind
         ])
         .run(tauri::generate_context!())

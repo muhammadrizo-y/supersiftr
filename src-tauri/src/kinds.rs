@@ -7,41 +7,41 @@ use thiserror::Error;
 use crate::config::config_dir;
 
 #[derive(Debug, Error)]
-pub enum PresetError {
+pub enum KindError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Invalid kinds JSON: {0}")]
     Json(#[from] serde_json::Error),
     #[error("Config error: {0}")]
     Config(#[from] crate::config::ConfigError),
-    #[error("A kind preset with this name already exists")]
+    #[error("A kind with this name already exists")]
     Duplicate,
-    #[error("No kind preset with this name exists")]
+    #[error("No kind with this name exists")]
     NotFound,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Preset {
-    /// Stable identifier (e.g. "movie"). Rules reference kinds by this id;
-    /// renaming `title` does not break references.
+pub struct Kind {
+    /// Stable identifier (e.g. "movie"). Rules/sieves reference kinds by this
+    /// id; renaming `title` does not break references.
     pub name: String,
     /// Human-friendly display name (e.g. "Movie").
     pub title: String,
     #[serde(default)]
     pub extensions: Vec<String>,
-    /// Whether the kind is active. Default kinds can only be toggled off;
-    /// user-created kinds are always enabled.
+    /// Whether the kind is active. Disabled kinds neither match nor contribute
+    /// extensions in sieve conditions.
     #[serde(default)]
     pub enabled: bool,
-    /// Built-in kind backed by `default_kinds.json`: cannot be deleted or
-    /// edited, only disabled and reset.
+    /// Built-in kind backed by `default_kinds.json`: can't be deleted, but can
+    /// be edited and reset to its shipped defaults.
     #[serde(default)]
     pub is_default: bool,
 }
 
 /// Current schema version of `kinds.json`. Bump only when the kind store
 /// shape breaks; independent of config/sieves versions.
-const PRESETS_SCHEMA_VERSION: u32 = 1;
+const KINDS_SCHEMA_VERSION: u32 = 1;
 
 /// Current schema version of `default_kinds.json`. Bump only when that file's
 /// shape breaks.
@@ -49,9 +49,9 @@ const DEFAULT_KINDS_SCHEMA_VERSION: u32 = 1;
 
 /// The built-in kinds shipped with the app. Materialized into
 /// `default_kinds.json` on first run; `Reset` restores a kind from there.
-fn default_kinds() -> Vec<Preset> {
+fn default_kinds() -> Vec<Kind> {
     vec![
-        Preset {
+        Kind {
             name: "movie".into(),
             title: "Movie".into(),
             extensions: vec![
@@ -63,7 +63,7 @@ fn default_kinds() -> Vec<Preset> {
             enabled: true,
             is_default: true,
         },
-        Preset {
+        Kind {
             name: "image".into(),
             title: "Image".into(),
             extensions: vec![
@@ -75,7 +75,7 @@ fn default_kinds() -> Vec<Preset> {
             enabled: true,
             is_default: true,
         },
-        Preset {
+        Kind {
             name: "audio".into(),
             title: "Audio".into(),
             extensions: vec![
@@ -87,7 +87,7 @@ fn default_kinds() -> Vec<Preset> {
             enabled: true,
             is_default: true,
         },
-        Preset {
+        Kind {
             name: "document".into(),
             title: "Document".into(),
             extensions: vec![
@@ -100,7 +100,7 @@ fn default_kinds() -> Vec<Preset> {
             enabled: true,
             is_default: true,
         },
-        Preset {
+        Kind {
             name: "archive".into(),
             title: "Archive".into(),
             extensions: vec!["zip", "rar", "7z", "tar", "gz", "bz2", "xz"]
@@ -115,67 +115,67 @@ fn default_kinds() -> Vec<Preset> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct PresetStore {
+pub struct KindStore {
     pub schema_version: u32,
-    pub presets: Vec<Preset>,
+    pub kinds: Vec<Kind>,
 }
 
-impl Default for PresetStore {
+impl Default for KindStore {
     fn default() -> Self {
         Self {
-            schema_version: PRESETS_SCHEMA_VERSION,
-            presets: default_kinds(),
+            schema_version: KINDS_SCHEMA_VERSION,
+            kinds: default_kinds(),
         }
     }
 }
 
-/// The immutable default set kind "Reset" restores from. Written to disk on
-/// first run so it has an explicit schema_version like every other JSON file.
+/// The shipped default kinds "Reset" restores from. Written to disk on first
+/// run so it has an explicit schema_version like every other JSON file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DefaultKindStore {
     pub schema_version: u32,
-    pub presets: Vec<Preset>,
+    pub kinds: Vec<Kind>,
 }
 
 impl Default for DefaultKindStore {
     fn default() -> Self {
         Self {
             schema_version: DEFAULT_KINDS_SCHEMA_VERSION,
-            presets: default_kinds(),
+            kinds: default_kinds(),
         }
     }
 }
 
-pub fn presets_path() -> Result<PathBuf, PresetError> {
+pub fn kinds_path() -> Result<PathBuf, KindError> {
     Ok(config_dir()?.join("kinds.json"))
 }
 
-pub fn default_kinds_path() -> Result<PathBuf, PresetError> {
+pub fn default_kinds_path() -> Result<PathBuf, KindError> {
     Ok(config_dir()?.join("default_kinds.json"))
 }
 
 /// The shipped default kinds, materializing `default_kinds.json` on first run.
-pub fn load_defaults() -> Result<Vec<Preset>, PresetError> {
+pub fn load_defaults() -> Result<Vec<Kind>, KindError> {
     let path = default_kinds_path()?;
     if !path.exists() {
         let store = DefaultKindStore::default();
         let contents = serde_json::to_string_pretty(&store)?;
         fs::write(path, contents)?;
-        return Ok(store.presets);
+        return Ok(store.kinds);
     }
     let contents = fs::read_to_string(path)?;
     let store: DefaultKindStore = serde_json::from_str(&contents)?;
-    Ok(store.presets)
+    Ok(store.kinds)
 }
 
-pub fn load() -> Result<PresetStore, PresetError> {
+pub fn load() -> Result<KindStore, KindError> {
     let defaults = load_defaults()?;
-    let path = presets_path()?;
+    let path = kinds_path()?;
     if !path.exists() {
-        let store = PresetStore {
-            schema_version: PRESETS_SCHEMA_VERSION,
-            presets: defaults,
+        let store = KindStore {
+            schema_version: KINDS_SCHEMA_VERSION,
+            kinds: defaults,
         };
         let _ = save(&store);
         return Ok(store);
@@ -184,8 +184,8 @@ pub fn load() -> Result<PresetStore, PresetError> {
     Ok(serde_json::from_str(&contents)?)
 }
 
-pub fn save(store: &PresetStore) -> Result<(), PresetError> {
-    let path = presets_path()?;
+pub fn save(store: &KindStore) -> Result<(), KindError> {
+    let path = kinds_path()?;
     let contents = serde_json::to_string_pretty(store)?;
     fs::write(path, contents)?;
     Ok(())
@@ -197,12 +197,12 @@ mod tests {
 
     #[test]
     fn defaults_are_unique() {
-        let store = PresetStore::default();
-        let mut names: Vec<&str> = store.presets.iter().map(|p| p.name.as_str()).collect();
+        let store = KindStore::default();
+        let mut names: Vec<&str> = store.kinds.iter().map(|p| p.name.as_str()).collect();
         names.sort_unstable();
         names.dedup();
-        assert_eq!(names.len(), store.presets.len());
-        assert_eq!(store.schema_version, PRESETS_SCHEMA_VERSION);
+        assert_eq!(names.len(), store.kinds.len());
+        assert_eq!(store.schema_version, KINDS_SCHEMA_VERSION);
     }
 
     #[test]
@@ -218,18 +218,18 @@ mod tests {
         let json = serde_json::to_string(&store).unwrap();
         let back: DefaultKindStore = serde_json::from_str(&json).unwrap();
         assert_eq!(back.schema_version, DEFAULT_KINDS_SCHEMA_VERSION);
-        assert_eq!(back.presets.len(), store.presets.len());
+        assert_eq!(back.kinds.len(), store.kinds.len());
     }
 
     #[test]
     fn completed_empty_roundtrip() {
-        let store = PresetStore {
-            schema_version: PRESETS_SCHEMA_VERSION,
-            presets: Vec::new(),
+        let store = KindStore {
+            schema_version: KINDS_SCHEMA_VERSION,
+            kinds: Vec::new(),
         };
         let json = serde_json::to_string(&store).unwrap();
-        let back: PresetStore = serde_json::from_str(&json).unwrap();
-        assert!(back.presets.is_empty());
-        assert_eq!(back.schema_version, PRESETS_SCHEMA_VERSION);
+        let back: KindStore = serde_json::from_str(&json).unwrap();
+        assert!(back.kinds.is_empty());
+        assert_eq!(back.schema_version, KINDS_SCHEMA_VERSION);
     }
 }
