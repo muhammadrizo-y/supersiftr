@@ -126,7 +126,7 @@ fn is_retryable(err: &std::io::Error) -> bool {
     }
     #[cfg(not(windows))]
     {
-        matches!(err, e if e.kind() == std::io::ErrorKind::PermissionDenied)
+        err.kind() == std::io::ErrorKind::PermissionDenied
     }
 }
 
