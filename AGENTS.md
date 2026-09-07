@@ -85,12 +85,14 @@ keep the app running after verifying.
 - Sieves are evaluated in order; `Sieve::applies_to` checks `watched_folders`.
   Empty conditions never match; `Sieve::is_runnable` requires >=1 condition and
   >=1 action.
-- Versioning: each JSON file (`config.json`, `sieves.json`, `kinds.json`)
-  carries its own integer `"schema_version"` field, independently maintained
-  per file (`CONFIG_SCHEMA_VERSION`, `SIEVES_SCHEMA_VERSION`,
-  `PRESETS_SCHEMA_VERSION`, currently all 1) that only bumps on that file's
-  schema breaks. Loading is tolerant: missing/unknown versions are treated as
-  latest. Migrations (per-file version dispatch) are not implemented yet.
+- Versioning: each JSON file (`config.json`, `sieves.json`, `kinds.json`,
+  `default_kinds.json`) carries its own integer `"schema_version"` field,
+  independently maintained per file (`CONFIG_SCHEMA_VERSION`,
+  `SIEVES_SCHEMA_VERSION`, `PRESETS_SCHEMA_VERSION`,
+  `DEFAULT_KINDS_SCHEMA_VERSION`, currently all 1) that only bumps on that
+  file's schema breaks. Loading is tolerant: missing/unknown versions are
+  treated as latest. Migrations (per-file version dispatch) are not
+  implemented yet.
 
 ## Windows / window management
 

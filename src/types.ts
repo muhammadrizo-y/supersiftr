@@ -35,6 +35,8 @@ export type Preset = {
   name: string;
   title: string;
   extensions: string[];
+  enabled: boolean;
+  is_default: boolean;
 };
 
 export type AppConfig = {

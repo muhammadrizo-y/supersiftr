@@ -56,6 +56,12 @@ impl SieveCondition {
             SieveProperty::Kind => {
                 for id in &self.values {
                     if let Some(preset) = presets.iter().find(|p| &p.name == id) {
+                        // Disabled kinds are inactive: they contribute no
+                        // extensions (matching nothing for `is`, everything
+                        // for `is_not`), like missing presets.
+                        if !preset.enabled {
+                            continue;
+                        }
                         for ext in &preset.extensions {
                             set.insert(ext.to_lowercase());
                         }
@@ -264,6 +270,8 @@ mod tests {
             name: name.into(),
             title: name.into(),
             extensions: exts.iter().map(|s| s.to_string()).collect(),
+            enabled: true,
+            is_default: false,
         }
     }
 
@@ -390,6 +398,24 @@ mod tests {
         let s = sieve(vec![kind_condition(SieveOperator::Is, vec!["gone".into()])], Vec::new());
         assert_eq!(s.missing_kinds(&[]), vec!["gone"]);
         assert!(s.missing_kinds(&[preset("gone", &["mp4"])]).is_empty());
+    }
+
+    #[test]
+    fn disabled_kind_contributes_no_extensions() {
+        let s = sieve(
+            vec![kind_condition(SieveOperator::Is, vec!["movie".into()])],
+            Vec::new(),
+        );
+        let mut movie = preset("movie", &["mp4", "mov"]);
+        movie.enabled = false;
+        // The kind exists but is disabled, so it matches nothing...
+        assert!(!s.matches(Path::new("clip.mp4"), &[movie.clone()]));
+        // ...and `is_not` matches everything (like a missing preset).
+        let s2 = sieve(
+            vec![kind_condition(SieveOperator::IsNot, vec!["movie".into()])],
+            Vec::new(),
+        );
+        assert!(s2.matches(Path::new("clip.mp4"), &[movie]));
     }
 
     #[test]

@@ -219,6 +219,9 @@ fn get_presets(state: State<'_, AppState>) -> Vec<Preset> {
 
 #[tauri::command]
 fn add_preset(preset: Preset, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
+    let mut preset = preset;
+    preset.enabled = true;
+    preset.is_default = false;
     {
         let state = app.state::<AppState>();
         let mut store = state.presets.lock().unwrap();
@@ -241,7 +244,12 @@ fn update_preset(preset: Preset, app: tauri::AppHandle) -> Result<Vec<Preset>, S
             .iter_mut()
             .find(|p| p.name == preset.name)
         {
-            Some(existing) => *existing = preset,
+            Some(existing) => {
+                if existing.is_default {
+                    return Err("Default kinds can't be edited".into());
+                }
+                *existing = preset;
+            }
             None => return Err(presets::PresetError::NotFound.to_string()),
         }
         presets::save(&store).map_err(|e| e.to_string())?;
@@ -254,10 +262,52 @@ fn delete_preset(name: String, app: tauri::AppHandle) -> Result<Vec<Preset>, Str
     {
         let state = app.state::<AppState>();
         let mut store = state.presets.lock().unwrap();
+        if let Some(existing) = store.presets.iter().find(|p| p.name == name) {
+            if existing.is_default {
+                return Err("Default kinds can't be deleted".into());
+            }
+        }
         let before = store.presets.len();
         store.presets.retain(|p| p.name != name);
         if store.presets.len() == before {
             return Err(presets::PresetError::NotFound.to_string());
+        }
+        presets::save(&store).map_err(|e| e.to_string())?;
+    }
+    Ok(get_preset_list(app.state::<AppState>()))
+}
+
+#[tauri::command]
+fn set_preset_enabled(name: String, enabled: bool, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.presets.lock().unwrap();
+        match store.presets.iter_mut().find(|p| p.name == name) {
+            Some(existing) => existing.enabled = enabled,
+            None => return Err(presets::PresetError::NotFound.to_string()),
+        }
+        presets::save(&store).map_err(|e| e.to_string())?;
+    }
+    Ok(get_preset_list(app.state::<AppState>()))
+}
+
+#[tauri::command]
+fn reset_kind(name: String, app: tauri::AppHandle) -> Result<Vec<Preset>, String> {
+    let defaults = presets::load_defaults().map_err(|e| e.to_string())?;
+    let Some(default_preset) = defaults.iter().find(|p| p.name == name) else {
+        return Err(format!("No default kind named \"{name}\""));
+    };
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.presets.lock().unwrap();
+        match store.presets.iter_mut().find(|p| p.name == name) {
+            Some(existing) => {
+                existing.title = default_preset.title.clone();
+                existing.extensions = default_preset.extensions.clone();
+                existing.enabled = true;
+                existing.is_default = true;
+            }
+            None => return Err(presets::PresetError::NotFound.to_string()),
         }
         presets::save(&store).map_err(|e| e.to_string())?;
     }
@@ -342,7 +392,9 @@ pub fn run() {
             get_presets,
             add_preset,
             update_preset,
-            delete_preset
+            delete_preset,
+            set_preset_enabled,
+            reset_kind
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

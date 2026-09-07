@@ -6,6 +6,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
   ChevronDown,
   ChevronUp,
+  EllipsisVertical,
   File,
   Folder,
   Image,
@@ -14,6 +15,7 @@ import {
   Plus,
   Trash2,
   TriangleAlert,
+  Undo2,
   Video,
   X,
 } from "lucide-react";
@@ -22,8 +24,15 @@ import closeIcon from "@/assets/close.svg?raw";
 import maximizeIcon from "@/assets/maximize.svg?raw";
 import minimizeIcon from "@/assets/minimize.svg?raw";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -540,10 +549,12 @@ function SieveForm({
     });
   }
 
-  const kindOptions: SelectOption[] = presets.map((p) => ({
-    value: p.name,
-    label: p.title,
-  }));
+  const kindOptions: SelectOption[] = presets
+    .filter((p) => p.enabled)
+    .map((p) => ({
+      value: p.name,
+      label: p.title,
+    }));
   const extOptions: SelectOption[] = allKnownExtensions(presets).map((e) => ({
     value: e,
     label: e,
@@ -1021,6 +1032,8 @@ function PresetForm({
           name: name.trim(),
           title: title.trim(),
           extensions,
+          enabled: true,
+          is_default: initial?.is_default ?? false,
         });
       }}
     >
@@ -1076,11 +1089,15 @@ function SettingsTab({
   onAdd,
   onUpdate,
   onDelete,
+  onToggleEnabled,
+  onReset,
 }: {
   presets: Preset[];
   onAdd: (preset: Preset) => void;
   onUpdate: (preset: Preset) => void;
   onDelete: (name: string) => void;
+  onToggleEnabled: (name: string, enabled: boolean) => void;
+  onReset: (name: string) => void;
 }) {
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [runAtStartup, setRunAtStartup] = useState<boolean | null>(null);
@@ -1186,41 +1203,71 @@ function SettingsTab({
             ) : (
               <li
                 key={p.name}
-                className="rounded-lg border border-border px-4 py-3"
+                className={cn(
+                  "rounded-lg border border-border px-4 py-3",
+                  !p.enabled && "opacity-50",
+                )}
               >
                 <div className="flex items-center gap-2">
                   <strong className="text-sm font-medium">{p.title}</strong>
+                  {p.is_default && <Badge variant="secondary">Default</Badge>}
                   <span className="text-xs text-muted-foreground">{p.name}</span>
-                  <div className="ml-auto flex gap-1">
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-<Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditing(p.name)}
-                        >
-                            <Pencil className="size-3.5" />
-                          </Button>
-                        }
-                      />
-                      <TooltipContent>Edit</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => onDelete(p.name)}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        }
-                      />
-                      <TooltipContent>Delete</TooltipContent>
-                    </Tooltip>
+                  <div className="ml-auto flex items-center gap-1">
+                    {p.is_default ? (
+                      <>
+                        <Switch
+                          checked={p.enabled}
+                          onCheckedChange={(next) => onToggleEnabled(p.name, next)}
+                        />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button size="icon" variant="ghost" className="size-8">
+                                <EllipsisVertical className="size-4" />
+                              </Button>
+                            }
+                          />
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => onReset(p.name)}>
+                              <Undo2 />
+                              Reset
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </>
+                    ) : (
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditing(p.name)}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                            }
+                          />
+                          <TooltipContent>Edit</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => onDelete(p.name)}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            }
+                          />
+                          <TooltipContent>Delete</TooltipContent>
+                        </Tooltip>
+                      </>
+                    )}
                   </div>
                 </div>
                 <p className="mt-1 select-text text-xs text-muted-foreground">
@@ -1317,6 +1364,16 @@ function App() {
     setPresets(updated);
     log(`Deleted kind: ${name}`);
     toast.success(`Kind "${name}" deleted`);
+  }
+
+  async function togglePresetEnabled(name: string, enabled: boolean) {
+    const updated = await invoke<Preset[]>("set_preset_enabled", { name, enabled });
+    setPresets(updated);
+  }
+
+  async function resetKind(name: string) {
+    const updated = await invoke<Preset[]>("reset_kind", { name });
+    setPresets(updated);
   }
 
   function renderSieveDetail(sieve: Sieve, index: number) {
@@ -1429,6 +1486,8 @@ function App() {
           onAdd={addPreset}
           onUpdate={updatePreset}
           onDelete={deletePreset}
+          onToggleEnabled={togglePresetEnabled}
+          onReset={resetKind}
         />
       );
     }
