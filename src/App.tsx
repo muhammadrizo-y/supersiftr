@@ -1267,6 +1267,17 @@ function App() {
     };
   }, [log]);
 
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault();
+        setView({ kind: "settings" });
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   async function removeSieve(index: number) {
     const updated = await invoke<Sieve[]>("remove_sieve", { index });
     setSieves(updated);
