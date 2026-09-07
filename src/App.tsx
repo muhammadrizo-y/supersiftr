@@ -1467,8 +1467,14 @@ function App() {
       setView(sieves.length ? { kind: "sieve", index: 0 } : { kind: "new" });
     });
     invoke<Kind[]>("get_kinds").then(setKinds);
-    invoke<string[]>("get_logs", { count: 200 }).then((logs) =>
-      setActivity(logs.map((l, i) => ({ id: i, message: l, level: "info" }))),
+    invoke<{ level: string; message: string }[]>("get_logs", { count: 200 }).then((logs) =>
+      setActivity(
+        logs.map((l, i) => ({
+          id: i,
+          message: l.message,
+          level: l.level === "error" ? "error" : "info",
+        })),
+      ),
     );
 
     const unlistenLog = listen<{ level: string; message: string }>("log-entry", (e) => {

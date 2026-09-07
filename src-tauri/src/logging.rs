@@ -63,14 +63,94 @@ impl ActivityLog {
         }
     }
 
-    pub fn read_tail(&self, count: usize) -> Vec<String> {
+    /// Returns the last `count` log entries, oldest first (chronological),
+    /// each parsed into `{ level, message }` so persisted errors render the
+    /// same as live ones.
+    pub fn read_tail(&self, count: usize) -> Vec<LogEntry> {
         let Ok(contents) = fs::read_to_string(&self.path) else {
             return Vec::new();
         };
-        contents.lines().rev().take(count).map(String::from).collect()
+        let mut lines: Vec<&str> = contents.lines().rev().take(count).collect();
+        lines.reverse();
+        lines.into_iter().map(parse_line).collect()
     }
 
     pub fn path(&self) -> &PathBuf {
         &self.path
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_level_and_message() {
+        let entry = parse_line("[2026-09-07 12:00:00] [error] \"file\" -> error");
+        assert_eq!(entry.level, "error");
+        assert_eq!(entry.message, "\"file\" -> error");
+    }
+
+    #[test]
+    fn unknown_format_falls_back_to_info() {
+        let entry = parse_line("not a log line");
+        assert_eq!(entry.level, "info");
+        assert_eq!(entry.message, "not a log line");
+    }
+
+    #[test]
+    fn read_tail_returns_chronological() {
+        let dir = std::env::temp_dir().join(format!("fau_log_test_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let log = ActivityLog::new(dir.clone());
+        for line in ["[t] [info] first", "[t] [error] second", "[t] [info] third"] {
+            fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(log.path())
+                .unwrap()
+                .write_all(format!("{line}\n").as_bytes())
+                .unwrap();
+        }
+
+        let entries = log.read_tail(10);
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].message, "first");
+        assert_eq!(entries[1].message, "second");
+        assert_eq!(entries[2].level, "info");
+        assert_eq!(entries[2].message, "third");
+        let _ = fs::remove_dir_all(&dir);
+    }
+}
+
+/// A single log entry as consumed by the frontend.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LogEntry {
+    pub level: String,
+    pub message: String,
+}
+
+/// Parses a persisted line (`[timestamp] [level] message`) into its parts.
+/// Falls back to an info entry with the whole line when the format is unknown.
+fn parse_line(line: &str) -> LogEntry {
+    if let Some(rest) = line.strip_prefix('[') {
+        if let Some(mid_start) = rest.find("] [") {
+            let mid = &rest[mid_start + 3..];
+            if let Some(level_end) = mid.find("] ") {
+                let level = &mid[..level_end];
+                let message = &mid[level_end + 2..];
+                if !message.is_empty() {
+                    return LogEntry {
+                        level: level.to_string(),
+                        message: message.to_string(),
+                    };
+                }
+            }
+        }
+    }
+    LogEntry {
+        level: "info".into(),
+        message: line.into(),
     }
 }

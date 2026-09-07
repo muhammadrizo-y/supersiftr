@@ -358,7 +358,7 @@ fn reset_kind(name: String, app: tauri::AppHandle) -> Result<Vec<Kind>, String> 
 }
 
 #[tauri::command]
-fn get_logs(state: State<'_, AppState>, count: Option<usize>) -> Vec<String> {
+fn get_logs(state: State<'_, AppState>, count: Option<usize>) -> Vec<logging::LogEntry> {
     state.log.read_tail(count.unwrap_or(200))
 }
 
