@@ -138,6 +138,23 @@ function allKnownExtensions(presets: Preset[]): string[] {
   return Array.from(set).sort();
 }
 
+const IMAGE_EXTENSIONS = new Set([
+  "jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "ico", "tif", "tiff",
+  "avif", "heic", "heif", "jfif",
+]);
+
+const VIDEO_EXTENSIONS = new Set([
+  "mp4", "mkv", "avi", "mov", "webm", "wmv", "flv", "m4v", "mpg", "mpeg",
+  "3gp", "3g2", "ts", "m2ts", "ogv",
+]);
+
+function fileTypeIcon(value: string) {
+  const ext = value.toLowerCase().replace(/^\./, "");
+  if (IMAGE_EXTENSIONS.has(ext)) return Image;
+  if (VIDEO_EXTENSIONS.has(ext)) return Video;
+  return File;
+}
+
 function missingKinds(sieve: Sieve, presets: Preset[]): string[] {
   const set = new Set<string>();
   for (const c of sieve.conditions) {
@@ -154,45 +171,6 @@ function isRunnable(sieve: Sieve): boolean {
 }
 
 type SelectOption = { value: string; label: string };
-
-const IMAGE_EXTENSIONS = new Set([
-  "jpg",
-  "jpeg",
-  "png",
-  "gif",
-  "webp",
-  "bmp",
-  "svg",
-  "ico",
-  "tiff",
-  "tif",
-  "avif",
-  "heic",
-  "heif",
-]);
-
-const VIDEO_EXTENSIONS = new Set([
-  "mp4",
-  "mkv",
-  "avi",
-  "mov",
-  "webm",
-  "m4v",
-  "wmv",
-  "flv",
-  "mpg",
-  "mpeg",
-  "3gp",
-  "ts",
-  "mts",
-]);
-
-function itemIcon(value: string) {
-  const ext = value.toLowerCase().replace(/^[.*]*\./, "");
-  if (IMAGE_EXTENSIONS.has(ext)) return Image;
-  if (VIDEO_EXTENSIONS.has(ext)) return Video;
-  return File;
-}
 
 function Combobox({
   options,
@@ -335,7 +313,7 @@ function Combobox({
           )}
           {rows.map((row, i) => {
             const isActive = i === highlight;
-            const Icon = itemIcon(row.value);
+            const Icon = fileTypeIcon(row.value);
             return (
               <div
                 key={row.value}
