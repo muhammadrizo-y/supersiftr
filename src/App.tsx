@@ -6,12 +6,15 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
   ChevronDown,
   ChevronUp,
+  File,
   Folder,
+  Image,
   Minus,
   Pencil,
   Plus,
   Trash2,
   TriangleAlert,
+  Video,
   X,
 } from "lucide-react";
 
@@ -151,6 +154,45 @@ function isRunnable(sieve: Sieve): boolean {
 }
 
 type SelectOption = { value: string; label: string };
+
+const IMAGE_EXTENSIONS = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "bmp",
+  "svg",
+  "ico",
+  "tiff",
+  "tif",
+  "avif",
+  "heic",
+  "heif",
+]);
+
+const VIDEO_EXTENSIONS = new Set([
+  "mp4",
+  "mkv",
+  "avi",
+  "mov",
+  "webm",
+  "m4v",
+  "wmv",
+  "flv",
+  "mpg",
+  "mpeg",
+  "3gp",
+  "ts",
+  "mts",
+]);
+
+function itemIcon(value: string) {
+  const ext = value.toLowerCase().replace(/^[.*]*\./, "");
+  if (IMAGE_EXTENSIONS.has(ext)) return Image;
+  if (VIDEO_EXTENSIONS.has(ext)) return Video;
+  return File;
+}
 
 function Combobox({
   options,
@@ -293,6 +335,7 @@ function Combobox({
           )}
           {rows.map((row, i) => {
             const isActive = i === highlight;
+            const Icon = itemIcon(row.value);
             return (
               <div
                 key={row.value}
@@ -309,6 +352,7 @@ function Combobox({
                     : "text-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
               >
+                <Icon className="size-4 shrink-0 text-muted-foreground" />
                 {row.label}
               </div>
             );
@@ -815,7 +859,7 @@ function SieveForm({
                     </SelectPopup>
                   </Select>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    {a.type === "rename" ? "rename to:" : "to folder:"}
+                    {a.type === "rename" ? "to:" : "to folder:"}
                   </span>
                   {a.type === "rename" ? (
                     <Input
