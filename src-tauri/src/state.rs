@@ -76,19 +76,37 @@ impl AppState {
             let mut watcher = state.watcher.lock().unwrap();
             watcher.stop();
             for folder in folders {
-                let app = app.clone();
-                watcher.watch(folder.into(), move |path| {
-                    Self::process(app.clone(), path);
-                })?;
+                let folder_path = std::path::PathBuf::from(folder);
+                let folder_str = folder_path.display().to_string();
+                if !folder_path.is_dir() {
+                    state.log.write(
+                        app,
+                        "error",
+                        &format!("Cannot watch non-existent folder: \"{folder_str}\""),
+                    );
+                    continue;
+                }
+                let app_handle = app.clone();
+                if let Err(e) = watcher.watch(folder_path, move |path| {
+                    Self::process(app_handle.clone(), path);
+                }) {
+                    state.log.write(
+                        app,
+                        "error",
+                        &format!("Failed to watch \"{folder_str}\": {e}"),
+                    );
+                }
             }
 
             // Hot-reload the sieves file: any edit restarts watchers against
             // the freshly loaded sieves.
             if let Ok(path) = sieves::sieves_path() {
-                let app = app.clone();
-                watcher.watch_file(path, move || {
-                    let _ = Self::reload(&app);
-                })?;
+                let app_handle = app.clone();
+                if let Err(e) = watcher.watch_file(path, move || {
+                    let _ = Self::reload(&app_handle);
+                }) {
+                    state.log.write(app, "error", &format!("Failed to watch sieves file: {e}"));
+                }
             }
         }
         Ok(())
