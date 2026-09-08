@@ -36,4 +36,15 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom"],
+          baseui: ["@base-ui/react"],
+          date: ["date-fns", "react-day-picker"],
+        },
+      },
+    },
+  },
 }));
