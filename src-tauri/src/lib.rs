@@ -19,11 +19,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 fn set_window_background(dark: bool, window: tauri::WebviewWindow) {
-    let color = match dark {
-        true => [0x15, 0x15, 0x15, 255],
-        false => [255, 255, 255, 255],
-    };
-    let _ = window.set_background_color(Some(window_background(color)));
+    let _ = window.set_background_color(Some(window_background(theme_color(dark))));
 }
 
 #[tauri::command]
@@ -374,21 +370,22 @@ fn window_background(color: [u8; 4]) -> tauri::webview::Color {
     tauri::webview::Color(color[0], color[1], color[2], color[3])
 }
 
+fn theme_color(dark: bool) -> [u8; 4] {
+    if dark {
+        [0x15, 0x15, 0x15, 255]
+    } else {
+        [255, 255, 255, 255]
+    }
+}
+
 fn apply_theme_background(window: &tauri::WebviewWindow) {
-    let theme = window.theme().unwrap_or(tauri::Theme::Light);
-    let color = match theme {
-        tauri::Theme::Dark => [0x15, 0x15, 0x15, 255],
-        _ => [255, 255, 255, 255],
-    };
+    let color = theme_color(window.theme().unwrap_or(tauri::Theme::Light) == tauri::Theme::Dark);
     let _ = window.set_background_color(Some(window_background(color)));
 
     let handle = window.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::ThemeChanged(theme) = event {
-            let color = match theme {
-                tauri::Theme::Dark => [0x15, 0x15, 0x15, 255],
-                _ => [255, 255, 255, 255],
-            };
+            let color = theme_color(matches!(theme, tauri::Theme::Dark));
             let _ = handle.set_background_color(Some(window_background(color)));
         }
     });
