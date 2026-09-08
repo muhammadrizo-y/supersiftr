@@ -87,7 +87,7 @@ function Sidebar({
       onKeyDown={handleKeyDown}
     >
       <header
-        className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3"
+        className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3"
         data-tauri-drag-region
       >
         <h1

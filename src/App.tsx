@@ -309,14 +309,14 @@ function App() {
         />
 
         <div className="flex min-w-0 flex-1 flex-col bg-card">
-          <div
-            className="flex h-9 shrink-0 items-center justify-end"
+          <header
+            className="flex h-10 shrink-0 items-center justify-end border-b border-border pl-4 pr-0"
             data-tauri-drag-region
           >
-            <div className="h-full" data-tauri-drag-region>
+            <div className="flex h-full">
               <WindowControls />
             </div>
-          </div>
+          </header>
           <ScrollArea className="min-w-0 flex-1" contentClassName="divide-y divide-border">
             {renderMain()}
           </ScrollArea>
