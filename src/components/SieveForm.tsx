@@ -412,6 +412,7 @@ export function SieveForm({
                         onChange={(values) => updateCondition(i, { values })}
                         allowCustom={false}
                         placeholder="Select kinds…"
+                        label="kinds for this condition"
                       />
                     )}
                     {c.property === "extension" && (
@@ -421,6 +422,7 @@ export function SieveForm({
                         onChange={(values) => updateCondition(i, { values })}
                         allowCustom
                         placeholder="Type or select extensions…"
+                        label="file extensions"
                       />
                     )}
                     {c.property === "name" && (
@@ -430,6 +432,7 @@ export function SieveForm({
                         onChange={(values) => updateCondition(i, { values })}
                         allowCustom
                         placeholder="Add name patterns…"
+                        label="name patterns"
                       />
                     )}
                     {c.property === "modified" && (

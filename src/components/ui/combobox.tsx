@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -30,6 +30,17 @@ function fileTypeIcon(value: string) {
   return File;
 }
 
+function optionId(listId: string, i: number) {
+  return `${listId}-opt-${i}`;
+}
+
+function activeDescId(listId: string, open: boolean, highlight: number, rowsLen: number, showAddRow: boolean) {
+  if (!open) return undefined;
+  const maxIndex = rowsLen + (showAddRow ? 1 : 0) - 1;
+  if (maxIndex < 0) return undefined;
+  return optionId(listId, Math.min(highlight, maxIndex));
+}
+
 export function Combobox({
   options,
   selected,
@@ -37,6 +48,7 @@ export function Combobox({
   placeholder,
   allowCustom = true,
   onBlur,
+  label = "select values",
 }: {
   options: SelectOption[];
   selected: string[];
@@ -44,6 +56,7 @@ export function Combobox({
   placeholder?: string;
   allowCustom?: boolean;
   onBlur?: () => void;
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -159,11 +172,18 @@ export function Combobox({
 
   const showDropdown = open && (rows.length > 0 || showAddRow || selected.length > 0);
 
+  const listId = useId();
+  const actDesc = activeDescId(listId, showDropdown, highlight, rows.length, showAddRow);
+
   return (
     <div ref={containerRef} className="relative">
       {showDropdown && (
         <div
           ref={listRef}
+          id={listId}
+          role="listbox"
+          aria-multiselectable="true"
+          aria-label={`${label} options`}
           className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 scrollbar-gutter-stable duration-100 animate-in fade-in-0"
         >
           {rows.length === 0 && !showAddRow && (
@@ -175,10 +195,12 @@ export function Combobox({
             return (
               <div
                 key={row.value}
+                id={optionId(listId, i)}
                 ref={(el) => {
                   rowRefs.current[i] = el;
                 }}
                 role="option"
+                aria-selected={isActive}
                 onMouseEnter={() => setHighlight(i)}
                 onClick={() => toggle(row.value)}
                 className={cn(
@@ -195,10 +217,12 @@ export function Combobox({
           })}
           {showAddRow && (
             <div
+              id={optionId(listId, rows.length)}
               ref={(el) => {
                 rowRefs.current[rows.length] = el;
               }}
               role="option"
+              aria-selected={highlight === rows.length}
               onMouseEnter={() => setHighlight(rows.length)}
               onClick={() => addCustom(query)}
               className={cn(
@@ -250,6 +274,13 @@ export function Combobox({
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
+          aria-label={label}
+          aria-expanded={showDropdown}
+          aria-haspopup="listbox"
+          aria-autocomplete="list"
+          aria-controls={showDropdown ? listId : undefined}
+          aria-activedescendant={actDesc}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -269,6 +300,9 @@ export function Combobox({
           }}
           className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
           aria-label={open ? "Close dropdown" : "Open dropdown"}
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          aria-controls={open ? listId : undefined}
         >
           {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
         </button>

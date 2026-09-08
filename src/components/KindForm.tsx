@@ -72,6 +72,7 @@ export function KindForm({
           allowCustom
           placeholder="Type or select extensions…"
           onBlur={() => setExtTouched(true)}
+          label="kind extensions"
         />
         {extTouched && extensions.length === 0 && (
           <p className="text-xs text-destructive">Add at least one extension.</p>
