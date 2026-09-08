@@ -123,6 +123,10 @@ keep the app running after verifying.
 
 ## Gotchas
 
+- Every `add/remove/update_sieve` calls `AppState::restart_watchers`, which stops
+  all watchers and re-registers every watched folder. Correct but O(n) per
+  mutation with brief coverage drops; accepted tradeoff for a small sieve count
+  (no incremental watch management).
 - Do not add code comments unless requested.
 - Do not commit secrets. Inspect `git status`/`git diff` before committing and only
   stage intended files.
