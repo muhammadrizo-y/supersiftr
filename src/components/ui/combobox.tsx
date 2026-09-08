@@ -138,6 +138,8 @@ export function Combobox({
     inputRef.current?.focus();
   }
 
+  const optionCount = rows.length + (showAddRow ? 1 : 0);
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Backspace" && query === "" && selected.length > 0) {
       removeTag(selected[selected.length - 1]);
@@ -146,12 +148,17 @@ export function Combobox({
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setOpen(true);
-      setHighlight((h) => Math.min(h + 1, rows.length + (showAddRow ? 1 : 0) - 1));
+      if (optionCount > 0) {
+        setHighlight((h) => (h + 1) % optionCount);
+      }
       return;
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlight((h) => Math.max(h - 1, 0));
+      setOpen(true);
+      if (optionCount > 0) {
+        setHighlight((h) => (h - 1 + optionCount) % optionCount);
+      }
       return;
     }
     if (e.key === "Enter") {
