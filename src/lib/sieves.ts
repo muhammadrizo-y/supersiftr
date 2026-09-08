@@ -11,6 +11,9 @@ export function allKnownExtensions(kinds: Kind[]): string[] {
   return Array.from(set).sort();
 }
 
+/// Mirrors `Sieve::missing_kinds` in src-tauri/src/sieves.rs — keep in sync
+/// if the matching rule ever changes. (Computed client-side on purpose: it
+/// re-evaluates instantly when kinds change, without re-fetching sieves.)
 export function missingKinds(sieve: Sieve, kinds: Kind[]): string[] {
   const set = new Set<string>();
   for (const c of sieve.conditions) {
@@ -22,6 +25,8 @@ export function missingKinds(sieve: Sieve, kinds: Kind[]): string[] {
   return Array.from(set);
 }
 
+/// Mirrors `Sieve::is_runnable` in src-tauri/src/sieves.rs — keep in sync if
+/// the runnable rule ever changes (e.g. also requiring a watched folder).
 export function isRunnable(sieve: Sieve): boolean {
   return sieve.conditions.length > 0 && sieve.actions.length > 0;
 }
