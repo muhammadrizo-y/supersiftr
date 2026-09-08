@@ -61,16 +61,49 @@ function App() {
     };
   }, [log]);
 
+  const cancelForm = useCallback(() => {
+    if (view.kind === "new") {
+      setView(sieves.length ? { kind: "sieve", index: 0 } : { kind: "activity" });
+    } else if (view.kind === "edit") {
+      setView({ kind: "sieve", index: view.index });
+    }
+  }, [view, sieves]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === ",") {
         e.preventDefault();
         setView({ kind: "settings" });
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setView({ kind: "new" });
+        return;
+      }
+      if (
+        e.key !== "Escape" ||
+        (view.kind !== "new" && view.kind !== "edit")
+      ) {
+        return;
+      }
+      // An open popup (combobox list, select, date picker) closes itself on
+      // Escape — don't cancel the whole form underneath it.
+      const target = e.target as HTMLElement | null;
+      const inSidebarList = target?.closest?.("[data-sieve-list]");
+      const inPopup =
+        target?.closest?.(
+          '[data-popup-open], [data-open], [role="dialog"]',
+        ) ||
+        (Boolean(target?.closest?.('[role="listbox"]')) && !inSidebarList);
+      if (!inPopup) {
+        e.preventDefault();
+        cancelForm();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [cancelForm]);
 
   async function removeSieve(index: number) {
     const updated = await invoke<Sieve[]>("remove_sieve", { index });
@@ -188,11 +221,7 @@ function App() {
           <SieveForm
             kinds={kinds}
             onSubmit={addSieve}
-            onCancel={() =>
-              setView(
-                sieves.length ? { kind: "sieve", index: 0 } : { kind: "activity" },
-              )
-            }
+            onCancel={cancelForm}
           />
         </section>
       );
@@ -257,7 +286,7 @@ function App() {
             kinds={kinds}
             initial={sieve}
             onSubmit={(updated) => void updateSieve(view.index, updated)}
-            onCancel={() => setView({ kind: "sieve", index: view.index })}
+            onCancel={cancelForm}
           />
         </section>
       );

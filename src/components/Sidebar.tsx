@@ -1,4 +1,5 @@
 import { Activity, Plus, Settings, Trash2 } from "lucide-react";
+import { useRef } from "react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -50,8 +51,41 @@ function Sidebar({
   onSelect: (view: View) => void;
   onDelete: (index: number) => void;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const selectedIndex =
+    view.kind === "sieve" || view.kind === "edit" ? view.index : -1;
+
+  function focusRow(index: number) {
+    listRef.current
+      ?.querySelector<HTMLElement>(`[data-sieve-index="${index}"]`)
+      ?.focus();
+  }
+
+  function moveSelection(dir: 1 | -1) {
+    const count = sieves.length;
+    if (count === 0) return;
+    const base = selectedIndex >= 0 ? selectedIndex : dir === 1 ? -1 : count;
+    const next = Math.min(count - 1, Math.max(0, base + dir));
+    onSelect({ kind: "sieve", index: next });
+    focusRow(next);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      moveSelection(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveSelection(-1);
+    }
+  }
+
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-background">
+    <aside
+      className="flex w-60 shrink-0 flex-col border-r border-border bg-background"
+      onKeyDown={handleKeyDown}
+    >
       <header
         className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3"
         data-tauri-drag-region
@@ -79,46 +113,62 @@ function Sidebar({
       </header>
 
       <ScrollArea className="min-h-0 flex-1" contentClassName="flex flex-col gap-0.5 px-2 py-2">
-        {sieves.map((sieve, i) => (
-          <div
-            key={i}
-            role="button"
-            tabIndex={0}
-            onClick={() => onSelect({ kind: "sieve", index: i })}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                onSelect({ kind: "sieve", index: i });
-              }
-            }}
-            className={cn(
-              "group flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-              (view.kind === "sieve" || view.kind === "edit") && view.index === i
-                ? "bg-accent text-accent-foreground"
-                : "text-foreground hover:bg-accent/60",
-            )}
-          >
-            <span className="truncate">{sieve.name}</span>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(i);
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                }
-              />
-              <TooltipContent side="right">Delete sieve</TooltipContent>
-            </Tooltip>
-          </div>
-        ))}
-        {sieves.length === 0 && (
+        {sieves.length === 0 ? (
           <p className="px-2 py-1 text-xs text-muted-foreground">No sieves yet.</p>
+        ) : (
+          <div
+            ref={listRef}
+            role="listbox"
+            aria-label="Sieves"
+            aria-activedescendant={
+              selectedIndex >= 0 ? `sieve-option-${selectedIndex}` : undefined
+            }
+            data-sieve-list
+            tabIndex={0}
+            className="flex flex-col gap-0.5 outline-none"
+          >
+            {sieves.map((sieve, i) => (
+              <div
+                key={i}
+                id={`sieve-option-${i}`}
+                role="option"
+                aria-selected={i === selectedIndex}
+                data-sieve-index={i}
+                tabIndex={0}
+                onClick={() => onSelect({ kind: "sieve", index: i })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    onSelect({ kind: "sieve", index: i });
+                  }
+                }}
+                className={cn(
+                  "group flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                  i === selectedIndex
+                    ? "bg-accent text-accent-foreground"
+                    : "text-foreground hover:bg-accent/60",
+                )}
+              >
+                <span className="truncate">{sieve.name}</span>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(i);
+                        }}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent side="right">Delete sieve</TooltipContent>
+                </Tooltip>
+              </div>
+            ))}
+          </div>
         )}
       </ScrollArea>
 
