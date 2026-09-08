@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Activity, Pencil, TriangleAlert } from "lucide-react";
+import { Activity, Pencil, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -164,6 +164,11 @@ function App() {
     setSieves(updated);
   }
 
+  async function clearActivity() {
+    await invoke("clear_logs");
+    setActivity([]);
+  }
+
   async function resetKind(name: string) {
     const updated = await invoke<Kind[]>("reset_kind", { name });
     setKinds(updated);
@@ -250,7 +255,18 @@ function App() {
     if (view.kind === "activity") {
       return (
         <section className="px-6 py-5">
-          <h2 className="mb-4 text-2xl font-semibold">Activity</h2>
+          <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="text-2xl font-semibold">Activity</h2>
+          {activity.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void clearActivity()}
+            >
+              <Trash2 className="size-3.5" /> Clear
+            </Button>
+          )}
+        </div>
           {activity.length === 0 ? (
             <Empty className="border-border/70">
               <EmptyHeader>

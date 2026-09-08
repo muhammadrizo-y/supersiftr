@@ -78,6 +78,14 @@ impl ActivityLog {
     pub fn path(&self) -> &PathBuf {
         &self.path
     }
+
+    /// Empties the persisted activity log. Drops the open file handle first so
+    /// the file can be removed on Windows.
+    pub fn clear(&self) {
+        let mut guard = self.file.lock().unwrap();
+        *guard = None;
+        let _ = fs::remove_file(&self.path);
+    }
 }
 
 #[cfg(test)]

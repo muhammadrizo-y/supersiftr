@@ -382,6 +382,11 @@ fn get_log_path(state: State<'_, AppState>) -> String {
     state.log.path().to_string_lossy().to_string()
 }
 
+#[tauri::command]
+fn clear_logs(state: State<'_, AppState>) {
+    state.log.clear();
+}
+
 /// Match the native window background to the app's theme so the sliver of
 /// window that the webview hasn't repainted yet during a live resize doesn't
 /// flash white in dark mode.
@@ -452,6 +457,7 @@ pub fn run() {
             set_sieve_enabled,
             get_logs,
             get_log_path,
+            clear_logs,
             get_kinds,
             add_kind,
             update_kind,
