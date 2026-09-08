@@ -35,16 +35,26 @@ keep the app running after verifying.
 ## Project layout
 
 - `src/` — React frontend
-  - `App.tsx` — the whole app UI (title bar, sidebar, sieve list/detail, forms,
-    settings, activity log) plus the custom multi-select `Combobox`.
+  - `App.tsx` — app shell only: global state (sieves/kinds/activity/view), IPC
+    handlers, view routing, and the two-pane layout.
   - `types.ts` — shared TS types mirroring the Rust domain (`Sieve`, `Kind`,
     `RuleAction`, `SieveCondition`, `AppConfig`, `View`).
   - `main.tsx` — entry; syncs window background with `prefers-color-scheme` and
     shows the window after mount.
   - `components/ui/` — shadcn/Base UI primitives (button, badge, card, calendar,
     date-picker, dialog, input, input-group, label, popover, sonner, textarea,
-    tooltip, command).
+    tooltip, command, combobox).
   - `components/Sidebar.tsx` — left nav.
+  - `components/SieveForm.tsx` — the sieve create/edit form (conditions +
+    actions + rename preview).
+  - `components/KindForm.tsx` — kind create/edit form.
+  - `components/SettingsTab.tsx` — settings, kind management, rename-suffix
+    management.
+  - `components/WindowControls.tsx` — custom minimize/maximize/close buttons.
+  - `lib/sieves.ts` — shared sieve helpers (`describeConditions`, `kindByTitle`,
+    `missingKinds`, …).
+  - `lib/suffixes.ts` — suffix splitting/formatting helpers (mirror of Rust
+    `suffix::split`).
 - `src-tauri/` — Rust backend
   - `src/main.rs` — binary entry (thin).
   - `src/lib.rs` — `#[tauri::command]`s + app setup (`run()` in `supersiftr_lib`).
