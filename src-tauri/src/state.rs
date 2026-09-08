@@ -20,6 +20,12 @@ pub struct AppState {
     pub tray: Mutex<Option<tauri::tray::TrayIcon>>,
 }
 
+// Lock ordering: any block that holds more than one of these mutexes must
+// acquire them in this canonical order — sieves → kinds → suffixes, and
+// sieves → watcher. `process()` and `restart_watchers()` are the only nested
+// acquisitions today and both start with `sieves`. Keep it that way or a new
+// command that locks the reverse order will deadlock.
+
 impl AppState {
     pub fn new() -> Self {
         let config_dir = config::config_dir().unwrap_or_default();
