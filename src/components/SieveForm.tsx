@@ -619,7 +619,7 @@ export function SieveForm({
         </div>
       </fieldset>
 
-      <div className="flex justify-end gap-2">
+      <div className="sticky bottom-0 -mx-6 -mb-5 flex items-center justify-end gap-2 border-t border-border/60 bg-card px-6 py-4">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
