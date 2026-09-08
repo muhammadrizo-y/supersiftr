@@ -73,7 +73,10 @@ function ScrollArea({
     const viewport = viewportRef.current;
     const drag = dragRef.current;
     if (!viewport || !drag) return;
-    const ratio = (viewport.scrollHeight - viewport.clientHeight) / viewport.clientHeight;
+    const { scrollHeight, clientHeight } = viewport;
+    const thumbHeight = Math.max(24, (clientHeight / scrollHeight) * clientHeight);
+    const travel = clientHeight - thumbHeight;
+    const ratio = travel > 0 ? (scrollHeight - clientHeight) / travel : 0;
     viewport.scrollTop = drag.startTop + Math.round((e.clientY - drag.startY) * ratio);
   };
 

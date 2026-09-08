@@ -1,8 +1,22 @@
-import { Activity, Plus, Settings, Trash2 } from "lucide-react";
+import {
+  Activity,
+  Plus,
+  Settings,
+  Trash2,
+  Workflow,
+} from "lucide-react";
 import { useRef } from "react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
@@ -11,6 +25,8 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Sieve, View } from "@/types";
+
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 
 function SidebarTab({
   label,
@@ -114,7 +130,33 @@ function Sidebar({
 
       <ScrollArea className="min-h-0 flex-1" contentClassName="flex flex-col gap-0.5 px-2 py-2">
         {sieves.length === 0 ? (
-          <p className="px-2 py-1 text-xs text-muted-foreground">No sieves yet.</p>
+          <Empty className="border-border/70">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Workflow className="size-4" />
+              </EmptyMedia>
+              <EmptyTitle>No active sieves</EmptyTitle>
+              <EmptyDescription>
+                Create one to start automating your folders.
+              </EmptyDescription>
+            </EmptyHeader>
+            <Button size="sm" onClick={() => onSelect({ kind: "new" })}>
+              Create Sieve
+              <KbdGroup>
+                {isMac ? (
+                  <>
+                    <Kbd>⌘</Kbd>
+                    <Kbd>N</Kbd>
+                  </>
+                ) : (
+                  <>
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>N</Kbd>
+                  </>
+                )}
+              </KbdGroup>
+            </Button>
+          </Empty>
         ) : (
           <div
             ref={listRef}

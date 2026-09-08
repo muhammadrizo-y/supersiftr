@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Pencil, TriangleAlert } from "lucide-react";
+import { Activity, Pencil, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -232,7 +239,17 @@ function App() {
         <section className="px-6 py-5">
           <h2 className="mb-4 text-2xl font-semibold">Activity</h2>
           {activity.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No activity yet.</p>
+            <Empty className="border-border/70">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Activity className="size-4" />
+                </EmptyMedia>
+                <EmptyTitle>No activity yet</EmptyTitle>
+                <EmptyDescription>
+                  When a sieve processes a file, the result will show up here.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <ul className="divide-y divide-border">
               {activity
