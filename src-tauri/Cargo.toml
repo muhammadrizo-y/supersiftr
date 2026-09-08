@@ -2,7 +2,7 @@
 name = "supersiftr"
 version = "0.1.0"
 description = "Supersiftr - File Automation Utility"
-authors = ["you"]
+authors = ["muhammadrizo_y"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
