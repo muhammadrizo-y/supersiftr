@@ -55,8 +55,12 @@ pub fn execute(
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
-            let (_, suffix_str) = suffix::split(&file_name, custom_suffixes);
-            let new_name = format!("{name}{suffix_str}");
+            let (base_name, suffix_str) = suffix::split(&file_name, custom_suffixes);
+            // `{name}` interpolates the original base name (suffix stripped) so
+            // a template like "{name}_backup" keeps the file distinct; a plain
+            // literal stays a full name replacement.
+            let resolved_name = name.replace("{name}", &base_name);
+            let new_name = format!("{resolved_name}{suffix_str}");
             let dest = source.with_file_name(&new_name);
             retry(|| fs::rename(source, &dest))?;
             Ok(dest)
@@ -206,6 +210,43 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("album.tar.gz"));
         assert!(dir.join("album.tar.gz").exists());
+    }
+
+    #[test]
+    fn rename_interpolates_original_name() {
+        let dir = temp_dir("rename_interp");
+        let src = dir.join("a.txt");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(&src, &RuleAction::Rename { name: "{name}_copy".into() }, &[]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.join("a_copy.txt"));
+        assert!(dir.join("a_copy.txt").exists());
+        assert!(!src.exists());
+    }
+
+    #[test]
+    fn rename_name_alone_keeps_original_base() {
+        let dir = temp_dir("rename_name_only");
+        let src = dir.join("a.txt");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(&src, &RuleAction::Rename { name: "{name}".into() }, &[]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.join("a.txt"));
+        assert!(dir.join("a.txt").exists());
+    }
+
+    #[test]
+    fn rename_prefix_keeps_compound_suffix() {
+        let dir = temp_dir("rename_prefix");
+        let src = dir.join("photo.tar.gz");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(&src, &RuleAction::Rename { name: "archive-{name}".into() }, &[]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.join("archive-photo.tar.gz"));
+        assert!(dir.join("archive-photo.tar.gz").exists());
     }
 
     #[test]

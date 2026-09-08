@@ -34,7 +34,10 @@ export function normalizeCustomSuffix(input: string, existing: string[]): string
   return s;
 }
 
+/// Mirrors the rename action in src-tauri/src/actions.rs: `{name}` is replaced
+/// by the original base name (suffix stripped), then the suffix is re-appended.
 export function formatRenamePreview(fileName: string, newName: string, customSuffixes: string[]) {
-  const { suffix } = splitSuffix(fileName, customSuffixes);
-  return `${newName.trim() || "…"}${suffix}`;
+  const { base, suffix } = splitSuffix(fileName, customSuffixes);
+  const resolved = newName.replace(/\{name\}/g, base).trim() || "…";
+  return `${resolved}${suffix}`;
 }

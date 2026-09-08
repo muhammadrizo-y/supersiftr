@@ -598,8 +598,10 @@ export function SieveForm({
           <p className="text-xs text-muted-foreground">
             Rename replaces the file's name while keeping its suffix (the
             recognized file ending). Compound suffixes like{" "}
-            <code>.tar.gz</code> are kept whole. Actions run in order, each on
-            the result of the previous one.
+            <code>.tar.gz</code> are kept whole. Use{" "}
+            <code>{"{name}"}</code> in the pattern to keep the original base
+            name, e.g. <code>{"{name}_processed"}</code>. Actions run in
+            order, each on the result of the previous one.
           </p>
         </div>
       </fieldset>
