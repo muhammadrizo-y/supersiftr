@@ -1,7 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Folder, Minus, Plus } from "lucide-react";
+import {
+  Folder,
+  FolderSearch,
+  Funnel,
+  Minus,
+  Plus,
+  Zap,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Combobox, type SelectOption } from "@/components/ui/combobox";
@@ -253,10 +260,12 @@ export function SieveForm({
         />
       </div>
 
-      <fieldset className="rounded-lg border border-border p-4">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Watch
-        </legend>
+      <fieldset className="rounded-lg border border-border/70 bg-muted/30 p-3.5">
+        <legend className="sr-only">Watched folders</legend>
+        <div className="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <FolderSearch className="size-3.5" />
+          <span className="uppercase tracking-wider">Watched Folders</span>
+        </div>
         <p className="mb-2 text-xs text-muted-foreground">
           Files added to any of these folders will be checked against this sieve.
         </p>
@@ -265,7 +274,7 @@ export function SieveForm({
             No folders selected yet.
           </p>
         ) : (
-          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+          <ul className="divide-y divide-border/50 overflow-hidden rounded-lg bg-background/60">
             {form.watched_folders.map((folder) => (
               <li
                 key={folder}
@@ -305,10 +314,12 @@ export function SieveForm({
         </Button>
       </fieldset>
 
-      <fieldset className="rounded-lg border border-border p-4">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Match
-        </legend>
+      <fieldset className="rounded-lg border border-border/70 bg-muted/30 p-3.5">
+        <legend className="sr-only">Match conditions</legend>
+        <div className="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Funnel className="size-3.5" />
+          <span className="uppercase tracking-wider">Match</span>
+        </div>
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <p className="flex items-center gap-1.5 text-sm">
@@ -362,7 +373,7 @@ export function SieveForm({
               {form.conditions.map((c, i) => (
                 <li
                   key={i}
-                  className="flex items-center gap-2 rounded-lg border border-border p-2"
+                  className="flex items-center gap-2 rounded-lg bg-background/60 p-2"
                 >
                   <Select
                     value={c.property}
@@ -469,10 +480,12 @@ export function SieveForm({
         </div>
       </fieldset>
 
-      <fieldset className="rounded-lg border border-border p-4">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Action
-        </legend>
+      <fieldset className="rounded-lg border border-border/70 bg-muted/30 p-3.5">
+        <legend className="sr-only">Actions</legend>
+        <div className="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Zap className="size-3.5" />
+          <span className="uppercase tracking-wider">Actions</span>
+        </div>
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm">Do the following to the matched file:</p>
@@ -509,7 +522,7 @@ export function SieveForm({
               {form.actions.map((a, i) => (
                 <li
                   key={i}
-                  className="flex items-center gap-2 rounded-lg border border-border p-2"
+                  className="flex items-center gap-2 rounded-lg bg-background/60 p-2"
                 >
                   <Select
                     value={a.type}
