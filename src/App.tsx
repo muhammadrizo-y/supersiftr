@@ -13,6 +13,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { Toaster } from "@/components/ui/sonner";
 import {
   Tooltip,
@@ -158,6 +159,11 @@ function App() {
     setKinds(updated);
   }
 
+  async function setSieveEnabled(index: number, enabled: boolean) {
+    const updated = await invoke<Sieve[]>("set_sieve_enabled", { index, enabled });
+    setSieves(updated);
+  }
+
   async function resetKind(name: string) {
     const updated = await invoke<Kind[]>("reset_kind", { name });
     setKinds(updated);
@@ -185,20 +191,27 @@ function App() {
         )}
         <div className="mb-4 flex items-center justify-between gap-2">
           <h2 className="text-2xl font-semibold">{sieve.name}</h2>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setView({ kind: "edit", index })}
-                >
-                  <Pencil className="size-3.5" /> Edit
-                </Button>
-              }
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={sieve.enabled}
+              onCheckedChange={(checked) => void setSieveEnabled(index, checked)}
+              aria-label={sieve.enabled ? "Disable sieve" : "Enable sieve"}
             />
-            <TooltipContent>Edit this sieve</TooltipContent>
-          </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setView({ kind: "edit", index })}
+                  >
+                    <Pencil className="size-3.5" /> Edit
+                  </Button>
+                }
+              />
+              <TooltipContent>Edit this sieve</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
         <dl className="grid grid-cols-[92px_1fr] gap-x-4 gap-y-2 text-sm">
           <dt className="text-muted-foreground">Watch</dt>

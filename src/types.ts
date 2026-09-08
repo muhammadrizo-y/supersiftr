@@ -29,6 +29,7 @@ export type Sieve = {
   mode: ConditionMode;
   conditions: SieveCondition[];
   actions: RuleAction[];
+  enabled: boolean;
 };
 
 export type Kind = {

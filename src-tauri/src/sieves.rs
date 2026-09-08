@@ -161,6 +161,14 @@ pub struct Sieve {
     /// Actions executed in order when the sieve matches.
     #[serde(default)]
     pub actions: Vec<RuleAction>,
+    /// Disabled sieves are skipped entirely: they never match and their
+    /// folders are not watched.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Sieve {
@@ -208,6 +216,9 @@ impl Sieve {
     }
 
     pub fn matches(&self, path: &Path, kinds: &[Kind]) -> bool {
+        if !self.enabled {
+            return false;
+        }
         if self.conditions.is_empty() {
             return false;
         }
@@ -282,6 +293,7 @@ mod tests {
             mode: SieveMode::All,
             conditions,
             actions,
+            enabled: true,
         }
     }
 
@@ -363,6 +375,7 @@ mod tests {
                 name_condition(SieveOperator::Matches, vec!["*photo*".into()]),
             ],
             actions: Vec::new(),
+            enabled: true,
         };
         let kinds = vec![kind("movie", &["mp4", "mov"])];
         // Kind matches even though name does not.
@@ -381,6 +394,7 @@ mod tests {
             mode: SieveMode::All,
             conditions: vec![kind_condition(SieveOperator::IsNot, vec!["gone".into()])],
             actions: Vec::new(),
+            enabled: true,
         };
         assert_eq!(s.missing_kinds(&[]), vec!["gone"]);
         assert!(s.matches(Path::new("anything.mp4"), &[]));
@@ -391,6 +405,20 @@ mod tests {
         let s = sieve(Vec::new(), Vec::new());
         assert!(!s.is_runnable());
         assert!(!s.matches(Path::new("anything.mp4"), &[]));
+    }
+
+    #[test]
+    fn disabled_sieve_never_matches() {
+        let mut s = sieve(
+            vec![SieveCondition {
+                property: SieveProperty::Extension,
+                operator: SieveOperator::Is,
+                values: vec!["pdf".into()],
+            }],
+            Vec::new(),
+        );
+        s.enabled = false;
+        assert!(!s.matches(Path::new("doc.pdf"), &[]));
     }
 
     #[test]

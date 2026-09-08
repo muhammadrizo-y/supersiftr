@@ -233,6 +233,7 @@ export function SieveForm({
       mode: form.mode,
       conditions,
       actions,
+      enabled: initial?.enabled ?? true,
     });
   }
 

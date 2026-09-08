@@ -194,10 +194,13 @@ fn action_verb(action: &RuleAction) -> &'static str {
     }
 }
 
-/// Returns the deduplicated set of folders watched across all sieves.
+/// Returns the deduplicated set of folders watched across all enabled sieves.
 fn collect_watch_folders(sieves: &[Sieve]) -> Vec<String> {
     let mut folders: Vec<String> = Vec::new();
     for sieve in sieves {
+        if !sieve.enabled {
+            continue;
+        }
         for folder in &sieve.watched_folders {
             if !folders.contains(folder) {
                 folders.push(folder.clone());

@@ -135,7 +135,7 @@ function Sidebar({
               <EmptyMedia variant="icon">
                 <Workflow className="size-4" />
               </EmptyMedia>
-              <EmptyTitle>No active sieves</EmptyTitle>
+              <EmptyTitle>No sieves</EmptyTitle>
               <EmptyDescription>
                 Create one to start automating your folders.
               </EmptyDescription>

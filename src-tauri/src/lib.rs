@@ -248,6 +248,25 @@ fn update_sieve(
 }
 
 #[tauri::command]
+fn set_sieve_enabled(
+    index: usize,
+    enabled: bool,
+    app: tauri::AppHandle,
+) -> Result<Vec<Sieve>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.sieves.lock().unwrap();
+        if index >= store.sieves.len() {
+            return Err("Sieve index out of bounds".into());
+        }
+        store.sieves[index].enabled = enabled;
+        sieves::save(&store).map_err(|e| e.to_string())?;
+    }
+    AppState::restart_watchers(&app).map_err(|e| e.to_string())?;
+    Ok(get_sieves(app.state::<AppState>()))
+}
+
+#[tauri::command]
 fn get_sieves(state: State<'_, AppState>) -> Vec<Sieve> {
     state.sieves.lock().unwrap().sieves.clone()
 }
@@ -430,6 +449,7 @@ pub fn run() {
             add_sieve,
             remove_sieve,
             update_sieve,
+            set_sieve_enabled,
             get_logs,
             get_log_path,
             get_kinds,
