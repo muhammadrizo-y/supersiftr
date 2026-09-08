@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Pencil, TriangleAlert } from "lucide-react";
@@ -33,8 +33,10 @@ function App() {
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [view, setView] = useState<View>({ kind: "new" });
 
+  const nextId = useRef(0);
+
   const log = useCallback((message: string, level: "info" | "error" = "info") => {
-    setActivity((prev) => [...prev, { id: Date.now() + Math.random(), message, level }]);
+    setActivity((prev) => [...prev, { id: nextId.current++, message, level }]);
   }, []);
 
   useEffect(() => {
@@ -44,13 +46,7 @@ function App() {
     });
     invoke<Kind[]>("get_kinds").then(setKinds);
     invoke<{ level: string; message: string }[]>("get_logs", { count: 200 }).then((logs) =>
-      setActivity(
-        logs.map((l, i) => ({
-          id: i,
-          message: l.message,
-          level: l.level === "error" ? "error" : "info",
-        })),
-      ),
+      setActivity(logs.map((l) => ({ id: nextId.current++, message: l.message, level: l.level === "error" ? "error" : "info" }))),
     );
 
     const unlistenLog = listen<{ level: string; message: string }>("log-entry", (e) => {
