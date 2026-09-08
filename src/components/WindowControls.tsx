@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import closeIcon from "@/assets/close.svg?raw";
 import maximizeIcon from "@/assets/maximize.svg?raw";
 import minimizeIcon from "@/assets/minimize.svg?raw";
+import restoreIcon from "@/assets/restore.svg?raw";
 
 import { cn } from "@/lib/utils";
 
@@ -22,6 +24,26 @@ function FluentIcon({ svg, className }: { svg: string; className?: string }) {
 
 export function WindowControls() {
   const appWindow = getCurrentWindow();
+  const [maximized, setMaximized] = useState(false);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    const update = () => {
+      appWindow.isMaximized().then((m) => {
+        if (!disposed) setMaximized(m);
+      });
+    };
+    update();
+    appWindow.onResized(update).then((fn) => {
+      if (disposed) fn();
+      else unlisten = fn;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [appWindow]);
 
   return (
     <div className="flex h-full items-stretch">
@@ -37,11 +59,15 @@ export function WindowControls() {
       <button
         type="button"
         tabIndex={-1}
-        title="Maximize"
+        title={maximized ? "Restore" : "Maximize"}
         onClick={() => appWindow.toggleMaximize()}
         className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
       >
-        <FluentIcon svg={maximizeIcon} className="size-3" />
+        {maximized ? (
+          <FluentIcon svg={restoreIcon} className="size-3" />
+        ) : (
+          <FluentIcon svg={maximizeIcon} className="size-3" />
+        )}
       </button>
       <button
         type="button"
