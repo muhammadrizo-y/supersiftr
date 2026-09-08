@@ -52,7 +52,7 @@ export function WindowControls() {
         tabIndex={-1}
         title="Minimize"
         onClick={() => appWindow.minimize()}
-        className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
+        className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors active:translate-y-px hover:bg-foreground/10"
       >
         <FluentIcon svg={minimizeIcon} className="size-3.5" />
       </button>
@@ -61,7 +61,7 @@ export function WindowControls() {
         tabIndex={-1}
         title={maximized ? "Restore" : "Maximize"}
         onClick={() => appWindow.toggleMaximize()}
-        className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-foreground/10"
+        className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors active:translate-y-px hover:bg-foreground/10"
       >
         {maximized ? (
           <FluentIcon svg={restoreIcon} className="size-3" />
@@ -74,7 +74,7 @@ export function WindowControls() {
         tabIndex={-1}
         title="Close"
         onClick={() => appWindow.close()}
-        className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-[#c42b1c] hover:text-white"
+        className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors active:translate-y-px hover:bg-[#c42b1c] hover:text-white"
       >
         <FluentIcon svg={closeIcon} className="size-3.5" />
       </button>

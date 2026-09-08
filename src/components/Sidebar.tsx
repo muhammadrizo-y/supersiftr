@@ -154,7 +154,7 @@ function Sidebar({
                     render={
                       <button
                         type="button"
-                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity active:translate-y-px hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           onDelete(i);
