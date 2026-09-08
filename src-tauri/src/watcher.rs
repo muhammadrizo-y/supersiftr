@@ -67,7 +67,9 @@ impl FileWatcher {
     }
 
     /// Watches a single file (non-recursive) and invokes `on_change` when the
-    /// file is modified. Used to hot-reload the config file.
+    /// file changes. Used to hot-reload the sieves file; callers should guard
+    /// against self-triggered events (the app itself writes the file), e.g.
+    /// by comparing contents before acting.
     pub fn watch_file<F>(
         &mut self,
         path: PathBuf,

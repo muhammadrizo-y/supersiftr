@@ -40,10 +40,23 @@ impl AppState {
         }
     }
 
-    /// Reloads the persisted sieves into state, then restarts watchers.
+    /// Reloads the persisted sieves into state, then restarts watchers — but
+    /// only when the file actually changed. The app itself writes `sieves.json`
+    /// on every mutation, which the file watcher also sees; without this guard
+    /// each save would trigger an unnecessary `restart_watchers` (and the
+    /// re-watch churn would look like an endless loop from the outside).
     pub fn reload(app: &tauri::AppHandle) -> Result<(), String> {
         let state = app.state::<AppState>();
         let loaded = sieves::load().map_err(|e| e.to_string())?;
+        {
+            let current = state.sieves.lock().unwrap();
+            if serde_json::to_string(&current.sieves).unwrap_or_default()
+                == serde_json::to_string(&loaded.sieves).unwrap_or_default()
+            {
+                return Ok(());
+            }
+            drop(current);
+        }
         {
             let mut sieves = state.sieves.lock().unwrap();
             *sieves = loaded;
