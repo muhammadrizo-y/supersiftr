@@ -48,7 +48,9 @@ pub fn config_path() -> Result<PathBuf, ConfigError> {
 pub fn load() -> Result<AppConfig, ConfigError> {
     let path = config_path()?;
     if !path.exists() {
-        return Ok(AppConfig::default());
+        let config = AppConfig::default();
+        save(&config)?;
+        return Ok(config);
     }
     let contents = fs::read_to_string(path)?;
     Ok(serde_json::from_str(&contents)?)
