@@ -33,7 +33,9 @@ function DatePicker({
           <button
             type="button"
             className={cn(
-              "flex h-8 w-full items-center justify-start gap-1.5 rounded-lg border border-input bg-background px-2.5 text-left text-sm font-normal transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:outline-3 focus-visible:outline-ring/50",
+              "flex h-8 w-full items-center justify-start gap-1.5 rounded-lg border border-input bg-background px-2.5 text-left text-sm font-normal transition-colors hover:bg-accent/40",
+              "outline-none focus-visible:border-ring focus-visible:outline-3 focus-visible:outline-ring/50",
+              "data-popup-open:border-ring data-popup-open:outline-3 data-popup-open:outline-ring/50",
               !value && "text-muted-foreground",
               className,
             )}
