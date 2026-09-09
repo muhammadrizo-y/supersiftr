@@ -38,19 +38,24 @@ function SelectValue({ ...props }: SelectPrimitive.Value.Props) {
 function SelectPopup({
   className,
   sideOffset = 4,
+  alignItemWithTrigger = false,
   ...props
 }: SelectPrimitive.Popup.Props &
-  Pick<SelectPrimitive.Positioner.Props, "sideOffset">) {
+  Pick<
+    SelectPrimitive.Positioner.Props,
+    "sideOffset" | "alignItemWithTrigger"
+  >) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
         sideOffset={sideOffset}
+        alignItemWithTrigger={alignItemWithTrigger}
         className="isolate z-50"
       >
         <SelectPrimitive.Popup
           data-slot="select-popup"
           className={cn(
-            "z-50 min-w-(--anchor-width) max-h-(--available-height) origin-(--transform-origin) overflow-y-auto rounded-lg bg-popover p-1 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 scrollbar-gutter-stable data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+            "z-50 min-w-(--anchor-width) max-h-(--available-height) origin-(--transform-origin) overflow-y-auto rounded-lg bg-popover p-1 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden duration-75 scrollbar-gutter-stable data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
             className,
           )}
           {...props}
