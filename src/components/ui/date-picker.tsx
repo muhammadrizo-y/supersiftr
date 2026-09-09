@@ -47,70 +47,84 @@ function DatePicker({
     value ? formatDisplay(parseISO(value)) : ""
   )
 
+  const trimmed = text.trim()
+  const parsed = trimmed === "" ? undefined : parseDate(trimmed)
+  const statusText =
+    trimmed === "" ? "" : parsed ? `→ ${formatDisplay(parsed)}` : "Invalid date"
+
   function handleInput(raw: string) {
     setText(raw)
-    const trimmed = raw.trim()
-    if (trimmed === "") {
+    if (raw.trim() === "") {
       setDate(undefined)
       onChange("")
       return
     }
-    const parsed = parseDate(trimmed)
-    if (parsed) {
-      setDate(parsed)
-      onChange(toISO(parsed))
+    const next = parseDate(raw.trim())
+    if (next) {
+      setDate(next)
+      onChange(toISO(next))
     }
   }
 
   return (
-    <InputGroup className={cn("has-[>[data-align=inline-end]]:[&>input]:pr-2", className)}>
-      <InputGroupInput
-        value={text}
-        placeholder={placeholder}
-        onChange={(e) => handleInput(e.currentTarget.value)}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault()
-            setOpen(true)
-          }
-        }}
-      />
-      <InputGroupAddon align="inline-end">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger
-            render={
-              <InputGroupButton
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Select date"
-                className="outline-none focus-visible:border-ring focus-visible:outline-3 focus-visible:outline-ring/50 data-popup-open:border-ring data-popup-open:outline-3 data-popup-open:outline-ring/50"
-              />
+    <div className={cn("flex min-w-0 items-center gap-2", className)}>
+      <InputGroup className="w-72 shrink-0">
+        <InputGroupInput
+          value={text}
+          placeholder={placeholder}
+          onChange={(e) => handleInput(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault()
+              setOpen(true)
             }
-          >
-            <CalendarIcon className="size-3.5" />
-            <span className="sr-only">Select date</span>
-          </PopoverTrigger>
-          <PopoverContent
-            className="w-auto overflow-hidden p-0"
-            align="end"
-            sideOffset={8}
-          >
-            <Calendar
-              mode="single"
-              selected={date}
-              captionLayout="dropdown"
-              defaultMonth={date}
-              onSelect={(d) => {
-                setDate(d)
-                setText(d ? formatDisplay(d) : "")
-                onChange(d ? toISO(d) : "")
-                setOpen(false)
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-      </InputGroupAddon>
-    </InputGroup>
+          }}
+        />
+        <InputGroupAddon align="inline-end">
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger
+              render={
+                <InputGroupButton
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label="Select date"
+                  className="outline-none focus-visible:border-ring focus-visible:outline-3 focus-visible:outline-ring/50 data-popup-open:border-ring data-popup-open:outline-3 data-popup-open:outline-ring/50"
+                />
+              }
+            >
+              <CalendarIcon className="size-3.5" />
+              <span className="sr-only">Select date</span>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-auto overflow-hidden p-0"
+              align="end"
+              sideOffset={8}
+            >
+              <Calendar
+                mode="single"
+                selected={date}
+                captionLayout="dropdown"
+                defaultMonth={date}
+                onSelect={(d) => {
+                  setDate(d)
+                  setText(d ? formatDisplay(d) : "")
+                  onChange(d ? toISO(d) : "")
+                  setOpen(false)
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+        </InputGroupAddon>
+      </InputGroup>
+      <span
+        className={cn(
+          "min-w-0 truncate text-xs",
+          parsed ? "text-muted-foreground" : "text-destructive"
+        )}
+      >
+        {statusText}
+      </span>
+    </div>
   )
 }
 
