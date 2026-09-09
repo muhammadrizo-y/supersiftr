@@ -133,7 +133,7 @@ export function SettingsTab({
         </div>
       </div>
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Kinds</h2>
+        <h3 className="text-lg font-semibold">Kinds</h3>
         <Button size="sm" variant="outline" onClick={() => setEditing("new")}>
           <Plus className="size-3.5" /> Add kind
         </Button>
@@ -265,7 +265,7 @@ export function SettingsTab({
       )}
 
       <div className="mt-8">
-        <h2 className="mb-1 text-2xl font-semibold">Rename suffixes</h2>
+        <h3 className="mb-1 text-lg font-semibold">Rename suffixes</h3>
         <p className="mb-4 text-xs text-muted-foreground">
           When a rename keeps the file's ending, compound suffixes are preserved
           as a unit. <code>.tar.gz</code> stays part of the name instead of being
