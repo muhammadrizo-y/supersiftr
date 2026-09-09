@@ -184,6 +184,14 @@ export function SettingsTab({
                   <div className="flex items-center gap-2">
                     <strong className="text-sm font-medium">{k.title}</strong>
                     <span className="text-xs text-muted-foreground">{k.name}</span>
+                    {k.is_default && (
+                      <Badge
+                        variant="secondary"
+                        className="px-1.5 py-0 text-[10px] font-normal tracking-wide"
+                      >
+                        Default
+                      </Badge>
+                    )}
                     <div className="ml-auto flex items-center gap-1">
                       {k.is_default ? (
                         <>
@@ -249,11 +257,6 @@ export function SettingsTab({
                   <p className="select-text text-xs text-muted-foreground">
                     {k.extensions.join(", ") || "no extensions"}
                   </p>
-                  {k.is_default && (
-                    <div className="mt-auto">
-                      <Badge variant="secondary">Default kind</Badge>
-                    </div>
-                  )}
                 </div>
               </li>
             ),
