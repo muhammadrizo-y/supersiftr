@@ -1,17 +1,16 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { EllipsisVertical, Pencil, Plus, Trash2, Undo2, X } from "lucide-react";
-import { toast } from "sonner";
+import { EllipsisVertical, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectItem,
@@ -25,9 +24,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { normalizeCustomSuffix } from "@/lib/suffixes";
 import { cn } from "@/lib/utils";
-import type { AppConfig, ConfigView, Kind, SuffixView } from "@/types";
+import type { AppConfig, CompoundExtensionsView, ConfigView, Kind } from "@/types";
 import { KindForm } from "./KindForm";
 
 export function SettingsTab({
@@ -52,19 +50,18 @@ export function SettingsTab({
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [runAtStartup, setRunAtStartup] = useState<boolean | null>(null);
   const [trayEnabled, setTrayEnabled] = useState<boolean | null>(null);
-  const [suffixDefaults, setSuffixDefaults] = useState<string[]>([]);
-  const [customSuffixes, setCustomSuffixes] = useState<string[]>([]);
-  const [newSuffix, setNewSuffix] = useState("");
+  const [compoundDefaults, setCompoundDefaults] = useState<string[]>([]);
+  const [customCompounds, setCustomCompounds] = useState<string[]>([]);
 
   useEffect(() => {
     invoke<ConfigView>("get_config")
       .then((v) => setTrayEnabled(v.config.show_in_tray))
       .catch(() => setTrayEnabled(false));
     invoke<boolean>("get_run_at_startup").then(setRunAtStartup).catch(() => setRunAtStartup(false));
-    invoke<SuffixView>("get_suffixes")
+    invoke<CompoundExtensionsView>("get_compound_extensions")
       .then((s) => {
-        setSuffixDefaults(s.defaults);
-        setCustomSuffixes(s.custom);
+        setCompoundDefaults(s.defaults);
+        setCustomCompounds(s.custom);
       })
       .catch(() => {});
   }, []);
@@ -96,27 +93,12 @@ export function SettingsTab({
     }
   }
 
-  async function addCustomSuffix() {
-    const normalized = normalizeCustomSuffix(newSuffix, customSuffixes);
-    if (!normalized) {
-      toast.error("Invalid or duplicate suffix");
-      return;
-    }
+  async function saveCustomCompounds(custom: string[]) {
     try {
-      const updated = await invoke<string[]>("add_suffix", { suffix: normalized });
-      setCustomSuffixes(updated);
-      setNewSuffix("");
-    } catch (e) {
-      toast.error(typeof e === "string" ? e : "Failed to add suffix");
-    }
-  }
-
-  async function removeCustomSuffix(suffix: string) {
-    try {
-      const updated = await invoke<string[]>("remove_suffix", { suffix });
-      setCustomSuffixes(updated);
-    } catch (e) {
-      toast.error(typeof e === "string" ? e : "Failed to remove suffix");
+      const updated = await invoke<string[]>("set_compound_extensions", { custom });
+      setCustomCompounds(updated);
+    } catch {
+      // ignore
     }
   }
 
@@ -311,65 +293,24 @@ export function SettingsTab({
       )}
 
       <div className="mt-8">
-        <h3 className="mb-1 text-lg font-semibold">Rename suffixes</h3>
+        <h3 className="mb-1 text-lg font-semibold">Compound extensions</h3>
         <p className="mb-4 text-xs text-muted-foreground">
-          When a rename keeps the file's ending, compound suffixes are preserved
-          as a unit. <code>.tar.gz</code> stays part of the name instead of being
-          reduced to <code>.gz</code>. Custom suffixes let you teach the app
-          endings like <code>backup.tar.xz</code>.
+          Endings a rename preserves as a unit, so <code>.tar.gz</code> stays
+          part of the name instead of being reduced to <code>.gz</code>. The
+          built-in ones are always on and can't be removed; add your own to
+          teach the app endings like <code>.backup.tar.xz</code>.
         </p>
-        {suffixDefaults.length > 0 && (
-          <div className="mb-4">
-            <p className="mb-1 text-xs font-medium text-muted-foreground">
-              Recognized by default
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {suffixDefaults.map((s) => (
-                <Badge key={s} variant="secondary" className="px-2 py-0.5 font-mono text-xs">
-                  {s}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <Input
-            value={newSuffix}
-            onChange={(e) => setNewSuffix(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void addCustomSuffix();
-              }
-            }}
-            placeholder=".backup.tar.xz"
-            className="max-w-52"
-          />
-          <Button size="sm" variant="outline" onClick={() => void addCustomSuffix()}>
-            <Plus className="size-3.5" /> Add
-          </Button>
-        </div>
-        {customSuffixes.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">No custom suffixes.</p>
-        ) : (
-          <ul className="mt-3 flex flex-wrap gap-1.5">
-            {customSuffixes.map((s) => (
-              <li key={s}>
-                <Badge variant="outline" className="gap-1.5 px-2 py-0.5 font-mono text-xs">
-                  {s}
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => void removeCustomSuffix(s)}
-                    aria-label={`Remove ${s}`}
-                  >
-                    <X className="size-3" />
-                  </button>
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        )}
+        <Combobox
+          options={compoundDefaults.map((s) => ({ value: s, label: s }))}
+          selected={[...compoundDefaults, ...customCompounds]}
+          locked={compoundDefaults}
+          onChange={(values) => {
+            const custom = values.filter((v) => !compoundDefaults.includes(v));
+            void saveCustomCompounds(custom);
+          }}
+          placeholder=".backup.tar.xz"
+          label="compound extensions"
+        />
       </div>
     </section>
   );

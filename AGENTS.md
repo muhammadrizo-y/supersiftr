@@ -46,23 +46,22 @@ keep the app running after verifying.
     tooltip, command, combobox).
   - `components/Sidebar.tsx` — left nav.
   - `components/SieveForm.tsx` — the sieve create/edit form (conditions +
-    actions + rename preview).
+    actions + rename pattern).
   - `components/KindForm.tsx` — kind create/edit form.
-  - `components/SettingsTab.tsx` — settings, kind management, rename-suffix
-    management.
+  - `components/SettingsTab.tsx` — settings, kind management, compound-
+    extension management.
   - `components/WindowControls.tsx` — custom minimize/maximize/close buttons.
   - `lib/sieves.ts` — shared sieve helpers (`describeConditions`, `kindByTitle`,
     `missingKinds`, …).
-  - `lib/suffixes.ts` — suffix splitting/formatting helpers (mirror of Rust
-    `suffix::split`).
 - `src-tauri/` — Rust backend
   - `src/main.rs` — binary entry (thin).
   - `src/lib.rs` — `#[tauri::command]`s + app setup (`run()` in `supersiftr_lib`).
   - `src/sieves.rs` — `Sieve`, `SieveCondition`, `RuleAction`, matching logic.
   - `src/actions.rs` — performs the move/copy/rename actions.
-  - `src/suffix.rs` — compound filename suffixes (`.tar.gz`), longest-match
-    split + custom suffix store in `suffixes.json`.
-  - `src/config.rs` — loads/saves `config.json` (settings only).
+  - `src/suffix.rs` — compound filename extensions (`.tar.gz`), longest-match
+    split; built-in defaults + legacy `suffixes.json` migration.
+  - `src/config.rs` — loads/saves `config.json` (settings incl. custom
+    compound extensions).
   - `src/kinds.rs` — "kind" named extension sets (`Kind`, `KindStore`),
     default kinds + `default_kinds.json`.
   - `src/state.rs` — `AppState` (mutex-guarded watcher/sieves/kinds/log) + reload.
@@ -99,10 +98,10 @@ keep the app running after verifying.
   Empty conditions never match; `Sieve::is_runnable` requires >=1 condition and
   >=1 action.
 - Versioning: each JSON file (`config.json`, `sieves.json`, `kinds.json`,
-  `default_kinds.json`, `suffixes.json`) carries its own integer
+  `default_kinds.json`) carries its own integer
   `"schema_version"` field, independently maintained per file
   (`CONFIG_SCHEMA_VERSION`, `SIEVES_SCHEMA_VERSION`, `KINDS_SCHEMA_VERSION`,
-  `DEFAULT_KINDS_SCHEMA_VERSION`, `SUFFIXES_SCHEMA_VERSION`, currently all 1)
+  `DEFAULT_KINDS_SCHEMA_VERSION`, currently all 1)
   that only bumps on that file's schema breaks. Loading is tolerant:
   missing/unknown versions are treated as latest. Migrations (per-file version
   dispatch) are not

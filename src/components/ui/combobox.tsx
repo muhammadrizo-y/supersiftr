@@ -50,6 +50,7 @@ export function Combobox({
   allowCustom = true,
   onBlur,
   label = "select values",
+  locked = [],
 }: {
   options: SelectOption[];
   selected: string[];
@@ -58,6 +59,7 @@ export function Combobox({
   allowCustom?: boolean;
   onBlur?: () => void;
   label?: string;
+  locked?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -141,6 +143,7 @@ export function Combobox({
   }
 
   function removeTag(value: string) {
+    if (locked.includes(value)) return;
     onChange(selected.filter((v) => v !== value));
     inputRef.current?.focus();
   }
@@ -309,17 +312,19 @@ export function Combobox({
             className="flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 text-xs"
           >
             {labelFor(v)}
-            <button
-              type="button"
-              aria-label={`Remove ${labelFor(v)}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                removeTag(v);
-              }}
-              className="flex cursor-pointer rounded-sm p-0.5 text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
-            >
-              <X className="size-3" />
-            </button>
+            {!locked.includes(v) && (
+              <button
+                type="button"
+                aria-label={`Remove ${labelFor(v)}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeTag(v);
+                }}
+                className="flex cursor-pointer rounded-sm p-0.5 text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
+              >
+                <X className="size-3" />
+              </button>
+            )}
           </span>
         ))}
         <input

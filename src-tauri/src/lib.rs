@@ -75,50 +75,36 @@ fn set_date_format(format: DateFormat, app: tauri::AppHandle) -> Result<AppConfi
 }
 
 #[derive(serde::Serialize)]
-struct SuffixView {
+struct CompoundExtensionsView {
     defaults: Vec<String>,
     custom: Vec<String>,
 }
 
 #[tauri::command]
-fn get_suffixes(state: State<'_, AppState>) -> SuffixView {
-    let custom = state.suffixes.lock().unwrap().custom_suffixes.clone();
-    SuffixView {
+fn get_compound_extensions(state: State<'_, AppState>) -> CompoundExtensionsView {
+    CompoundExtensionsView {
         defaults: suffix::DEFAULT_SUFFIXES.iter().map(|s| s.to_string()).collect(),
-        custom: suffix::all_suffixes(&custom)
-            .into_iter()
-            .filter(|s| !suffix::DEFAULT_SUFFIXES.contains(&s.as_str()))
-            .collect(),
+        custom: state.config.lock().unwrap().compound_extensions.clone(),
     }
 }
 
 #[tauri::command]
-fn add_suffix(suffix: String, app: tauri::AppHandle) -> Result<Vec<String>, String> {
-    {
-        let state = app.state::<AppState>();
-        let mut store = state.suffixes.lock().unwrap();
-        let Some(normalized) = suffix::normalize_custom_suffix(&suffix, &store.custom_suffixes) else {
-            return Err("Invalid or duplicate suffix".into());
+fn set_compound_extensions(
+    custom: Vec<String>,
+    app: tauri::AppHandle,
+) -> Result<Vec<String>, String> {
+    let state = app.state::<AppState>();
+    let mut config = state.config.lock().unwrap();
+    let mut cleaned: Vec<String> = Vec::new();
+    for s in custom {
+        let Some(normalized) = suffix::normalize_custom_suffix(&s, &cleaned) else {
+            continue;
         };
-        store.custom_suffixes.push(normalized);
-        suffix::save(&store).map_err(|e| e.to_string())?;
+        cleaned.push(normalized);
     }
-    Ok(get_custom_suffixes(app.state::<AppState>()))
-}
-
-#[tauri::command]
-fn remove_suffix(suffix: String, app: tauri::AppHandle) -> Result<Vec<String>, String> {
-    {
-        let state = app.state::<AppState>();
-        let mut store = state.suffixes.lock().unwrap();
-        store.custom_suffixes.retain(|s| s != &suffix);
-        suffix::save(&store).map_err(|e| e.to_string())?;
-    }
-    Ok(get_custom_suffixes(app.state::<AppState>()))
-}
-
-fn get_custom_suffixes(state: State<'_, AppState>) -> Vec<String> {
-    state.suffixes.lock().unwrap().custom_suffixes.clone()
+    config.compound_extensions = cleaned;
+    config::save(&config).map_err(|e| e.to_string())?;
+    Ok(config.compound_extensions.clone())
 }
 
 fn set_tray_enabled(app: &tauri::AppHandle, enabled: bool) -> Result<(), String> {
@@ -466,9 +452,8 @@ pub fn run() {
             get_run_at_startup,
             set_run_at_startup,
             set_date_format,
-            get_suffixes,
-            add_suffix,
-            remove_suffix,
+            get_compound_extensions,
+            set_compound_extensions,
             get_sieves,
             add_sieve,
             remove_sieve,

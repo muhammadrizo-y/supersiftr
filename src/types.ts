@@ -56,7 +56,7 @@ export type ConfigView = {
   fresh: boolean;
 };
 
-export type SuffixView = {
+export type CompoundExtensionsView = {
   defaults: string[];
   custom: string[];
 };

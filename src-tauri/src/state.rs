@@ -7,7 +7,7 @@ use crate::config::{self, AppConfig};
 use crate::kinds::{self, KindStore};
 use crate::logging::ActivityLog;
 use crate::sieves::{self, DeleteMode, RuleAction, Sieve, SieveStore};
-use crate::suffix::{self, SuffixStore};
+use crate::suffix;
 use crate::watcher::FileWatcher;
 
 pub struct AppState {
@@ -16,28 +16,28 @@ pub struct AppState {
     pub first_run: bool,
     pub sieves: Mutex<SieveStore>,
     pub kinds: Mutex<KindStore>,
-    pub suffixes: Mutex<SuffixStore>,
     pub log: ActivityLog,
     pub tray: Mutex<Option<tauri::tray::TrayIcon>>,
 }
 
 // Lock ordering: any block that holds more than one of these mutexes must
-// acquire them in this canonical order — sieves → kinds → suffixes, and
-// sieves → watcher. `process()` and `restart_watchers()` are the only nested
-// acquisitions today and both start with `sieves`. Keep it that way or a new
-// command that locks the reverse order will deadlock.
+// acquire them in this canonical order — sieves → kinds → config → watcher.
+// `process()` is the only nested acquisition today and starts with `sieves`.
+// Keep it that way or a new command that locks the reverse order will deadlock.
 
 impl AppState {
     pub fn new() -> Self {
         let config_dir = config::config_dir().unwrap_or_default();
-        let (config, first_run) = config::load().unwrap_or_default();
+        let (mut config, first_run) = config::load().unwrap_or_default();
+        if suffix::migrate_legacy_custom(&mut config) {
+            config::save(&config).ok();
+        }
         Self {
             watcher: Mutex::new(FileWatcher::new()),
             config: Mutex::new(config),
             first_run,
             sieves: Mutex::new(sieves::load().unwrap_or_default()),
             kinds: Mutex::new(kinds::load().unwrap_or_default()),
-            suffixes: Mutex::new(suffix::load().unwrap_or_default()),
             log: ActivityLog::new(config_dir),
             tray: Mutex::new(None),
         }
@@ -119,11 +119,10 @@ impl AppState {
     /// Skips files that no longer exist (already handled by a prior event).
     pub fn process(app: tauri::AppHandle, path: std::path::PathBuf) {
         let state = app.state::<AppState>();
-        let (sieves, kinds, custom_suffixes) = {
+        let (sieves, kinds, compound_extensions) = {
             let sieves = state.sieves.lock().unwrap();
             let kinds = state.kinds.lock().unwrap();
-            let suffixes = state.suffixes.lock().unwrap();
-            (sieves.sieves.clone(), kinds.kinds.clone(), suffixes.custom_suffixes.clone())
+            (sieves.sieves.clone(), kinds.kinds.clone(), state.config.lock().unwrap().compound_extensions.clone())
         };
 
         if !path.is_file() {
@@ -140,7 +139,7 @@ impl AppState {
             if sieve.matches(&path, &kinds) {
                 let mut current = path.to_owned();
                 for action in &sieve.actions {
-                    match actions::execute(&current, action, &custom_suffixes) {
+                    match actions::execute(&current, action, &compound_extensions) {
                         Ok(dest) => {
                             let verb = action_verb(action);
                             let target = match action {

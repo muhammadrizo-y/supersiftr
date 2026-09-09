@@ -1,9 +1,8 @@
 use std::fs;
-use std::path::PathBuf;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-use crate::config::{self, ConfigError};
+use crate::config::{self, AppConfig};
 
 /// Known compound filename suffixes that a rename should preserve as a unit.
 /// A suffix is the complete meaningful ending of a filename (e.g. `.tar.gz`),
@@ -19,9 +18,6 @@ pub const DEFAULT_SUFFIXES: &[&str] = &[
     ".spec.ts",
     ".min.js",
 ];
-
-/// Current schema version of `suffixes.json`.
-pub const SUFFIXES_SCHEMA_VERSION: u32 = 1;
 
 /// Splits a filename into its basename and suffix at the first slice of the
 /// longest configured suffix that the name ends with. Falls back to the final
@@ -71,53 +67,41 @@ pub fn normalize_custom_suffix(input: &str, existing: &[String]) -> Option<Strin
     Some(s)
 }
 
-/// Full list of every supported suffix (built-in defaults + deduped custom).
-pub fn all_suffixes(custom: &[String]) -> Vec<String> {
-    let mut all: Vec<String> = DEFAULT_SUFFIXES.iter().map(|s| s.to_string()).collect();
-    for c in custom {
-        let s = c.trim().to_ascii_lowercase();
-        if !s.is_empty() && !all.contains(&s) {
-            all.push(s);
-        }
-    }
-    all
-}
-
-/// Persisted custom-suffix store, `suffixes.json` (independent of config.json).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SuffixStore {
-    pub schema_version: u32,
+/// Legacy shape of `suffixes.json` (custom compounds lived there before they
+/// moved into `config.json` as `compound_extensions`).
+#[derive(Debug, Deserialize)]
+struct LegacySuffixStore {
     #[serde(default)]
-    pub custom_suffixes: Vec<String>,
+    custom_suffixes: Vec<String>,
 }
 
-impl Default for SuffixStore {
-    fn default() -> Self {
-        Self {
-            schema_version: SUFFIXES_SCHEMA_VERSION,
-            custom_suffixes: Vec::new(),
+/// One-time move of custom compounds from `suffixes.json` into the config,
+/// then deletion of the legacy file. Returns true if anything changed.
+pub fn migrate_legacy_custom(config: &mut AppConfig) -> bool {
+    let Ok(dir) = config::config_dir() else { return false };
+    migrate_legacy_custom_in(&dir, config)
+}
+
+fn migrate_legacy_custom_in(dir: &std::path::Path, config: &mut AppConfig) -> bool {
+    let path = dir.join("suffixes.json");
+    if !path.exists() {
+        return false;
+    }
+    if let Ok(contents) = fs::read_to_string(&path) {
+        if let Ok(store) = serde_json::from_str::<LegacySuffixStore>(&contents) {
+            for s in store.custom_suffixes {
+                let s = s.trim().to_ascii_lowercase();
+                if !s.is_empty()
+                    && !DEFAULT_SUFFIXES.contains(&s.as_str())
+                    && !config.compound_extensions.contains(&s)
+                {
+                    config.compound_extensions.push(s);
+                }
+            }
         }
     }
-}
-
-pub fn suffixes_path() -> Result<PathBuf, ConfigError> {
-    Ok(config::config_dir()?.join("suffixes.json"))
-}
-
-pub fn load() -> Result<SuffixStore, ConfigError> {
-    let path = suffixes_path()?;
-    if !path.exists() {
-        return Ok(SuffixStore::default());
-    }
-    let contents = fs::read_to_string(path)?;
-    Ok(serde_json::from_str(&contents)?)
-}
-
-pub fn save(store: &SuffixStore) -> Result<(), ConfigError> {
-    let path = suffixes_path()?;
-    let contents = serde_json::to_string_pretty(store)?;
-    fs::write(path, contents)?;
-    Ok(())
+    let _ = fs::remove_file(path);
+    true
 }
 
 #[cfg(test)]
@@ -172,12 +156,29 @@ mod tests {
     }
 
     #[test]
-    fn all_suffixes_dedupes() {
-        let all = all_suffixes(&custom(&[".tar.gz", ".custom"]) );
-        assert!(all.contains(&".tar.gz".to_string()));
-        assert!(all.contains(&".custom".to_string()));
-        // .tar.gz appears only once even though it's also a default.
-        let count = all.iter().filter(|s| *s == ".tar.gz").count();
-        assert_eq!(count, 1);
+    fn migrate_legacy_custom_imports_and_deletes() {
+        use std::fs;
+        let dir = std::env::temp_dir().join(format!("supersiftr_suffix_test_{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("suffixes.json");
+        fs::write(
+            &path,
+            r#"{"schema_version":1,"custom_suffixes":[".backup",".backup",".tar.gz"]}"#,
+        )
+        .unwrap();
+        let mut config = AppConfig { compound_extensions: vec![], ..AppConfig::default() };
+        let migrated = migrate_legacy_custom_in(&dir, &mut config);
+        assert!(migrated);
+        assert_eq!(config.compound_extensions, vec![".backup".to_string()]);
+        assert!(!path.exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn migrate_legacy_custom_is_noop_without_file() {
+        let mut config = AppConfig::default();
+        let migrated = migrate_legacy_custom_in(&std::env::temp_dir(), &mut config);
+        assert!(!migrated);
+        assert!(config.compound_extensions.is_empty());
     }
 }

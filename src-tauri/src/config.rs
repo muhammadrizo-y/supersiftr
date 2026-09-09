@@ -21,6 +21,7 @@ pub struct AppConfig {
     pub schema_version: u32,
     pub show_in_tray: bool,
     pub date_format: DateFormat,
+    pub compound_extensions: Vec<String>,
 }
 
 impl Default for AppConfig {
@@ -29,6 +30,7 @@ impl Default for AppConfig {
             schema_version: CONFIG_SCHEMA_VERSION,
             show_in_tray: true,
             date_format: DateFormat::Uk,
+            compound_extensions: Vec::new(),
         }
     }
 }
