@@ -1,7 +1,10 @@
+export type DeleteMode = "recycle" | "permanent";
+
 export type RuleAction =
   | { type: "move"; folder: string }
   | { type: "copy"; folder: string }
-  | { type: "rename"; name: string };
+  | { type: "rename"; name: string }
+  | { type: "delete"; mode: DeleteMode };
 
 export type ActionType = RuleAction["type"];
 

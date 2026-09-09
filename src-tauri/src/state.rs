@@ -6,7 +6,7 @@ use crate::actions;
 use crate::config::{self, AppConfig};
 use crate::kinds::{self, KindStore};
 use crate::logging::ActivityLog;
-use crate::sieves::{self, RuleAction, Sieve, SieveStore};
+use crate::sieves::{self, DeleteMode, RuleAction, Sieve, SieveStore};
 use crate::suffix::{self, SuffixStore};
 use crate::watcher::FileWatcher;
 
@@ -140,17 +140,20 @@ impl AppState {
                     match actions::execute(&current, action, &custom_suffixes) {
                         Ok(dest) => {
                             let verb = action_verb(action);
+                            let target = match action {
+                                RuleAction::Delete { .. } => String::new(),
+                                _ => format!(" -> \"{}\"", dest.to_string_lossy()),
+                            };
                             state.log.write(
                                 &app,
                                 "info",
                                 &format!(
-                                    "[{}] {verb} \"{}\" -> \"{}\"",
+                                    "[{}] {verb} \"{}\"{target}",
                                     sieve.name,
                                     current
                                         .file_name()
                                         .map(|n| n.to_string_lossy().to_string())
                                         .unwrap_or_default(),
-                                    dest.to_string_lossy(),
                                 ),
                             );
                             current = dest;
@@ -191,6 +194,8 @@ fn action_verb(action: &RuleAction) -> &'static str {
         RuleAction::Move { .. } => "Moved",
         RuleAction::Copy { .. } => "Copied",
         RuleAction::Rename { .. } => "Renamed",
+        RuleAction::Delete { mode: DeleteMode::Recycle } => "Sent to recycle bin",
+        RuleAction::Delete { mode: DeleteMode::Permanent } => "Deleted",
     }
 }
 

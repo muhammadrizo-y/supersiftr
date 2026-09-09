@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 
-use crate::sieves::RuleAction;
+use crate::sieves::{DeleteMode, RuleAction};
 use crate::suffix;
 
 const MAX_RETRIES: u32 = 5;
@@ -17,6 +17,8 @@ pub enum ActionError {
     Io(#[from] std::io::Error),
     #[error("Source does not exist: {0}")]
     SourceNotFound(String),
+    #[error("Recycle bin error: {0}")]
+    RecycleBin(String),
 }
 
 impl serde::Serialize for ActionError {
@@ -64,6 +66,15 @@ pub fn execute(
             let dest = source.with_file_name(&new_name);
             retry(|| fs::rename(source, &dest))?;
             Ok(dest)
+        }
+        RuleAction::Delete { mode } => {
+            match mode {
+                DeleteMode::Recycle => {
+                    trash::delete(source).map_err(|e| ActionError::RecycleBin(e.to_string()))?
+                }
+                DeleteMode::Permanent => retry(|| fs::remove_file(source))?,
+            }
+            Ok(source.to_path_buf())
         }
     }
 }
@@ -321,5 +332,22 @@ mod tests {
 
         let result = execute(&src, &RuleAction::Rename { name: "x".into() }, &[]);
         assert!(matches!(result, Err(ActionError::SourceNotFound(_))));
+    }
+
+    #[test]
+    fn delete_permanent_removes_file() {
+        let dir = temp_dir("delete");
+        let src = dir.join("a.txt");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(
+            &src,
+            &RuleAction::Delete {
+                mode: DeleteMode::Permanent,
+            },
+            &[],
+        );
+        assert!(result.is_ok());
+        assert!(!src.exists());
     }
 }

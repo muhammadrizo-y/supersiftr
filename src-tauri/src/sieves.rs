@@ -138,12 +138,20 @@ impl SieveCondition {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeleteMode {
+    Recycle,
+    Permanent,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleAction {
     Move { folder: String },
     Copy { folder: String },
     Rename { name: String },
+    Delete { mode: DeleteMode },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -481,5 +489,28 @@ mod tests {
         let store = SieveStore::default();
         assert_eq!(store.schema_version, SIEVES_SCHEMA_VERSION);
         assert!(store.sieves.is_empty());
+    }
+
+    #[test]
+    fn delete_action_roundtrip() {
+        let store = SieveStore {
+            schema_version: SIEVES_SCHEMA_VERSION,
+            sieves: vec![sieve(
+                vec![name_condition(SieveOperator::Matches, vec!["*tmp*".into()])],
+                vec![RuleAction::Delete {
+                    mode: DeleteMode::Recycle,
+                }],
+            )],
+        };
+        let json = serde_json::to_string(&store).unwrap();
+        assert!(json.contains("\"type\":\"delete\""));
+        assert!(json.contains("\"mode\":\"recycle\""));
+        let back: SieveStore = serde_json::from_str(&json).unwrap();
+        match &back.sieves[0].actions[0] {
+            RuleAction::Delete { mode } => {
+                assert_eq!(*mode, DeleteMode::Recycle);
+            }
+            _ => panic!("expected Delete action"),
+        }
     }
 }

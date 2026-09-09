@@ -35,6 +35,7 @@ import type {
   ConditionMode,
   ConditionOperator,
   ConditionProperty,
+  DeleteMode,
   Kind,
   RuleAction,
   Sieve,
@@ -52,6 +53,7 @@ type ActionRowState = {
   type: ActionType;
   folder: string;
   name: string;
+  mode: DeleteMode;
 };
 
 type SieveFormState = {
@@ -95,6 +97,12 @@ const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
   { value: "move", label: "Move" },
   { value: "copy", label: "Copy" },
   { value: "rename", label: "Rename" },
+  { value: "delete", label: "Delete" },
+];
+
+const DELETE_OPTIONS: { value: DeleteMode; label: string }[] = [
+  { value: "recycle", label: "Move to Recycle Bin" },
+  { value: "permanent", label: "Delete Permanently" },
 ];
 
 const emptyForm: SieveFormState = {
@@ -114,9 +122,11 @@ function actionRowFromAction(action: RuleAction): ActionRowState {
   switch (action.type) {
     case "move":
     case "copy":
-      return { type: action.type, folder: action.folder, name: "" };
+      return { type: action.type, folder: action.folder, name: "", mode: "recycle" };
     case "rename":
-      return { type: "rename", folder: "", name: action.name };
+      return { type: "rename", folder: "", name: action.name, mode: "recycle" };
+    case "delete":
+      return { type: "delete", folder: "", name: "", mode: action.mode };
   }
 }
 
@@ -181,7 +191,7 @@ export function SieveForm({
     }));
 
   function setActionType(index: number, type: ActionType) {
-    updateAction(index, { type, folder: "", name: "" });
+    updateAction(index, { type, folder: "", name: "", mode: "recycle" });
   }
 
   function removeAction(index: number) {
@@ -222,11 +232,15 @@ export function SieveForm({
         if (a.type === "rename") {
           return { type: "rename" as const, name: a.name.trim() };
         }
+        if (a.type === "delete") {
+          return { type: "delete" as const, mode: a.mode };
+        }
         return { type: a.type, folder: a.folder.trim() };
       })
-      .filter(
-        (a) => (a.type === "rename" ? a.name !== "" : a.folder !== ""),
-      );
+      .filter((a) => {
+        if (a.type === "delete") return true;
+        return a.type === "rename" ? a.name !== "" : a.folder !== "";
+      });
 
     onSubmit({
       name: form.name.trim(),
@@ -516,7 +530,7 @@ export function SieveForm({
                   onClick={() =>
                     set("actions", [
                       ...form.actions,
-                      { type: "move", folder: "", name: "" },
+                      { type: "move", folder: "", name: "", mode: "recycle" },
                     ])
                   }
                 >
@@ -559,49 +573,73 @@ export function SieveForm({
                       ))}
                     </SelectPopup>
                   </Select>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {a.type === "rename" ? "to:" : "to folder:"}
-                  </span>
-                  {a.type === "rename" ? (
-                    <div className="flex flex-1 flex-col gap-1">
-                      <Input
-                        value={a.name}
-                        onChange={(e) => updateAction(i, { name: e.currentTarget.value })}
-                        placeholder="report"
-                        className="flex-1"
-                      />
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Input
-                          value={previewFile}
-                          onChange={(e) => setPreviewFile(e.currentTarget.value)}
-                          aria-label="Sample file name for preview"
-                          className="h-6 w-40 font-mono text-[11px]"
-                        />
-                        <span>→</span>
-                        <span className="font-mono">
-                          {formatRenamePreview(previewFile, a.name, customSuffixes)}
-                        </span>
-                      </div>
-                    </div>
+                  {a.type === "delete" ? (
+                    <Select
+                      value={a.mode}
+                      onValueChange={(value: string | null) =>
+                        updateAction(i, { mode: value as DeleteMode })
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-44 shrink-0 gap-1">
+                        <SelectValue>
+                          {DELETE_OPTIONS.find((o) => o.value === a.mode)?.label ?? a.mode}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectPopup>
+                        {DELETE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectPopup>
+                    </Select>
                   ) : (
                     <>
-                      <Input
-                        value={a.folder}
-                        onChange={(e) => updateAction(i, { folder: e.currentTarget.value })}
-                        placeholder="D:\Temp"
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          const folder = await pickFolder();
-                          if (folder) updateAction(i, { folder });
-                        }}
-                      >
-                        <Folder className="size-3.5" /> Browse…
-                      </Button>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {a.type === "rename" ? "to:" : "to folder:"}
+                      </span>
+                      {a.type === "rename" ? (
+                        <div className="flex flex-1 flex-col gap-1">
+                          <Input
+                            value={a.name}
+                            onChange={(e) => updateAction(i, { name: e.currentTarget.value })}
+                            placeholder="report"
+                            className="flex-1"
+                          />
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Input
+                              value={previewFile}
+                              onChange={(e) => setPreviewFile(e.currentTarget.value)}
+                              aria-label="Sample file name for preview"
+                              className="h-6 w-40 font-mono text-[11px]"
+                            />
+                            <span>→</span>
+                            <span className="font-mono">
+                              {formatRenamePreview(previewFile, a.name, customSuffixes)}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <Input
+                            value={a.folder}
+                            onChange={(e) => updateAction(i, { folder: e.currentTarget.value })}
+                            placeholder="D:\Temp"
+                            className="flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const folder = await pickFolder();
+                              if (folder) updateAction(i, { folder });
+                            }}
+                          >
+                            <Folder className="size-3.5" /> Browse…
+                          </Button>
+                        </>
+                      )}
                     </>
                   )}
                   <Tooltip>
@@ -611,7 +649,7 @@ export function SieveForm({
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="size-7 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive!"
+                          className="ml-auto size-7 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive!"
                           onClick={() => removeAction(i)}
                         >
                           <Minus className="size-3.5" />

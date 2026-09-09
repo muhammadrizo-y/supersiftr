@@ -61,6 +61,8 @@ function describeAction(action: RuleAction): string {
       return `Copy to ${action.folder}`;
     case "rename":
       return `Rename to ${action.name}`;
+    case "delete":
+      return action.mode === "recycle" ? "Move to Recycle Bin" : "Delete Permanently";
   }
 }
 

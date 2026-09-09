@@ -31,4 +31,5 @@ glob = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 dirs = "6"
+trash = "5"
 
