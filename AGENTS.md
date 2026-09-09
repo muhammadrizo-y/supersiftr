@@ -59,7 +59,7 @@ keep the app running after verifying.
   - `src/sieves.rs` — `Sieve`, `SieveCondition`, `RuleAction`, matching logic.
   - `src/actions.rs` — performs the move/copy/rename actions.
   - `src/suffix.rs` — compound filename extensions (`.tar.gz`), longest-match
-    split; built-in defaults + legacy `suffixes.json` migration.
+    split; built-in defaults + custom list read from `config.json`.
   - `src/config.rs` — loads/saves `config.json` (settings incl. custom
     compound extensions).
   - `src/kinds.rs` — "kind" named extension sets (`Kind`, `KindStore`),
@@ -103,9 +103,10 @@ keep the app running after verifying.
   (`CONFIG_SCHEMA_VERSION`, `SIEVES_SCHEMA_VERSION`, `KINDS_SCHEMA_VERSION`,
   `DEFAULT_KINDS_SCHEMA_VERSION`, currently all 1)
   that only bumps on that file's schema breaks. Loading is tolerant:
-  missing/unknown versions are treated as latest. Migrations (per-file version
-  dispatch) are not
-  implemented yet.
+  missing/unknown versions are treated as latest. Per-file migrations are not
+  implemented yet — and don't need to be: as long as this is pre-1.0, data
+  format changes that aren't in a released build are handled by hand, not by
+  migration code.
 
 ## Windows / window management
 

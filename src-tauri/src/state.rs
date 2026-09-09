@@ -7,7 +7,6 @@ use crate::config::{self, AppConfig};
 use crate::kinds::{self, KindStore};
 use crate::logging::ActivityLog;
 use crate::sieves::{self, DeleteMode, RuleAction, Sieve, SieveStore};
-use crate::suffix;
 use crate::watcher::FileWatcher;
 
 pub struct AppState {
@@ -28,10 +27,7 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         let config_dir = config::config_dir().unwrap_or_default();
-        let (mut config, first_run) = config::load().unwrap_or_default();
-        if suffix::migrate_legacy_custom(&mut config) {
-            config::save(&config).ok();
-        }
+        let (config, first_run) = config::load().unwrap_or_default();
         Self {
             watcher: Mutex::new(FileWatcher::new()),
             config: Mutex::new(config),
