@@ -13,6 +13,7 @@ use crate::watcher::FileWatcher;
 pub struct AppState {
     pub watcher: Mutex<FileWatcher>,
     pub config: Mutex<AppConfig>,
+    pub first_run: bool,
     pub sieves: Mutex<SieveStore>,
     pub kinds: Mutex<KindStore>,
     pub suffixes: Mutex<SuffixStore>,
@@ -29,9 +30,11 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         let config_dir = config::config_dir().unwrap_or_default();
+        let (config, first_run) = config::load().unwrap_or_default();
         Self {
             watcher: Mutex::new(FileWatcher::new()),
-            config: Mutex::new(config::load().unwrap_or_default()),
+            config: Mutex::new(config),
+            first_run,
             sieves: Mutex::new(sieves::load().unwrap_or_default()),
             kinds: Mutex::new(kinds::load().unwrap_or_default()),
             suffixes: Mutex::new(suffix::load().unwrap_or_default()),

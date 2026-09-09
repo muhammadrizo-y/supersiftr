@@ -43,9 +43,17 @@ export type Kind = {
   is_default: boolean;
 };
 
+export type DateFormat = "us" | "uk";
+
 export type AppConfig = {
   schema_version: number;
   show_in_tray: boolean;
+  date_format: DateFormat;
+};
+
+export type ConfigView = {
+  config: AppConfig;
+  fresh: boolean;
 };
 
 export type SuffixView = {

@@ -33,13 +33,26 @@ import {
   kindByTitle,
   missingKinds,
 } from "@/lib/sieves";
-import type { ActivityEntry, Kind, Sieve, View } from "@/types";
+import type { ActivityEntry, ConfigView, Kind, Sieve, View } from "@/types";
+
+function detectDateFormat(): "us" | "uk" {
+  try {
+    const region =
+      new Intl.Locale(navigator.language).region ??
+      navigator.language.split("-")[1]?.toUpperCase() ??
+      "";
+    return region === "US" ? "us" : "uk";
+  } catch {
+    return "uk";
+  }
+}
 
 function App() {
   const [sieves, setSieves] = useState<Sieve[]>([]);
   const [kinds, setKinds] = useState<Kind[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [view, setView] = useState<View>({ kind: "new" });
+  const [dateFormat, setDateFormat] = useState<"us" | "uk">("uk");
 
   const nextId = useRef(0);
 
@@ -56,6 +69,12 @@ function App() {
     invoke<{ level: string; message: string }[]>("get_logs", { count: 200 }).then((logs) =>
       setActivity(logs.map((l) => ({ id: nextId.current++, message: l.message, level: l.level === "error" ? "error" : "info" }))),
     );
+    invoke<ConfigView>("get_config").then(({ config, fresh }) => {
+      setDateFormat(config.date_format);
+      if (fresh) {
+        void invoke("set_date_format", { format: detectDateFormat() });
+      }
+    });
 
     const unlistenLog = listen<{ level: string; message: string }>("log-entry", (e) => {
       log(e.payload.message, e.payload.level === "error" ? "error" : "info");
@@ -248,6 +267,7 @@ function App() {
               kinds={kinds}
               onSubmit={addSieve}
               onCancel={cancelForm}
+              dateFormat={dateFormat}
             />
           </div>
         </section>
@@ -312,6 +332,8 @@ function App() {
           onDelete={deleteKind}
           onToggleEnabled={toggleKindEnabled}
           onReset={resetKind}
+          dateFormat={dateFormat}
+          onDateFormatChange={setDateFormat}
         />
       );
     }
@@ -336,6 +358,7 @@ function App() {
               initial={sieve}
               onSubmit={(updated) => void updateSieve(view.index, updated)}
               onCancel={cancelForm}
+              dateFormat={dateFormat}
             />
           </div>
         </section>

@@ -12,7 +12,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{Emitter, Manager, State, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;
 
-use crate::config::AppConfig;
+use crate::config::{AppConfig, DateFormat};
 use crate::kinds::Kind;
 use crate::sieves::Sieve;
 use crate::state::AppState;
@@ -22,9 +22,18 @@ fn set_window_background(dark: bool, window: tauri::WebviewWindow) {
     let _ = window.set_background_color(Some(window_background(theme_color(dark))));
 }
 
+#[derive(serde::Serialize)]
+struct ConfigView {
+    config: AppConfig,
+    fresh: bool,
+}
+
 #[tauri::command]
-fn get_config(state: State<'_, AppState>) -> AppConfig {
-    state.config.lock().unwrap().clone()
+fn get_config(state: State<'_, AppState>) -> ConfigView {
+    ConfigView {
+        config: state.config.lock().unwrap().clone(),
+        fresh: state.first_run,
+    }
 }
 
 #[tauri::command]
@@ -36,7 +45,7 @@ fn set_show_in_tray(enabled: bool, app: tauri::AppHandle) -> Result<AppConfig, S
         config::save(&config).map_err(|e| e.to_string())?;
     }
     set_tray_enabled(&app, enabled).map_err(|e| e.to_string())?;
-    Ok(get_config(app.state::<AppState>()))
+    Ok(app.state::<AppState>().config.lock().unwrap().clone())
 }
 
 #[tauri::command]
@@ -54,6 +63,15 @@ fn set_run_at_startup(enabled: bool, app: tauri::AppHandle) -> Result<bool, Stri
     };
     result.map_err(|e| e.to_string())?;
     autolaunch.is_enabled().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_date_format(format: DateFormat, app: tauri::AppHandle) -> Result<AppConfig, String> {
+    let state = app.state::<AppState>();
+    let mut config = state.config.lock().unwrap();
+    config.date_format = format;
+    config::save(&config).map_err(|e| e.to_string())?;
+    Ok(config.clone())
 }
 
 #[derive(serde::Serialize)]
@@ -447,6 +465,7 @@ pub fn run() {
             set_show_in_tray,
             get_run_at_startup,
             set_run_at_startup,
+            set_date_format,
             get_suffixes,
             add_suffix,
             remove_suffix,

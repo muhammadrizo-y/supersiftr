@@ -146,11 +146,13 @@ export function SieveForm({
   initial,
   onSubmit,
   onCancel,
+  dateFormat,
 }: {
   kinds: Kind[];
   initial?: Sieve;
   onSubmit: (sieve: Sieve) => void;
   onCancel: () => void;
+  dateFormat: "us" | "uk";
 }) {
   const [form, setForm] = useState<SieveFormState>(() => formFromSieve(initial));
   const [customSuffixes, setCustomSuffixes] = useState<string[]>([]);
@@ -482,6 +484,7 @@ export function SieveForm({
                         }
                         placeholder="e.g. next Friday"
                         className="w-full"
+                        dateFormat={dateFormat}
                       />
                     )}
                   </div>

@@ -1,4 +1,11 @@
+import { format, parseISO } from "date-fns";
 import type { Kind, RuleAction, Sieve, SieveCondition } from "@/types";
+
+function readableDate(value: string): string {
+  const date = parseISO(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return format(date, "MMMM d, yyyy");
+}
 
 export function kindByTitle(kinds: Kind[], key: string): string {
   const k = kinds.find((x) => x.name === key);
@@ -42,8 +49,10 @@ function describeCondition(c: SieveCondition, kinds: Kind[]): string {
       return `Extension ${c.operator === "is" ? "is" : "isn't"} ${values}`;
     case "name":
       return `Name ${c.operator === "matches" ? "matches" : "doesn't match"} ${values}`;
-    case "modified":
-      return `Modified ${c.operator} ${values}`;
+    case "modified": {
+    const dates = c.values.map(readableDate).join(", ");
+    return `Modified ${c.operator} ${dates}`;
+  }
   }
 }
 

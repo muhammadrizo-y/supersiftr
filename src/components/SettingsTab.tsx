@@ -12,6 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
@@ -20,7 +27,7 @@ import {
 } from "@/components/ui/tooltip";
 import { normalizeCustomSuffix } from "@/lib/suffixes";
 import { cn } from "@/lib/utils";
-import type { AppConfig, Kind, SuffixView } from "@/types";
+import type { AppConfig, ConfigView, Kind, SuffixView } from "@/types";
 import { KindForm } from "./KindForm";
 
 export function SettingsTab({
@@ -30,6 +37,8 @@ export function SettingsTab({
   onDelete,
   onToggleEnabled,
   onReset,
+  dateFormat,
+  onDateFormatChange,
 }: {
   kinds: Kind[];
   onAdd: (kind: Kind) => void;
@@ -37,6 +46,8 @@ export function SettingsTab({
   onDelete: (name: string) => void;
   onToggleEnabled: (name: string, enabled: boolean) => void;
   onReset: (name: string) => void;
+  dateFormat: "us" | "uk";
+  onDateFormatChange: (format: "us" | "uk") => void;
 }) {
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [runAtStartup, setRunAtStartup] = useState<boolean | null>(null);
@@ -46,8 +57,8 @@ export function SettingsTab({
   const [newSuffix, setNewSuffix] = useState("");
 
   useEffect(() => {
-    invoke<AppConfig>("get_config")
-      .then((c) => setTrayEnabled(c.show_in_tray))
+    invoke<ConfigView>("get_config")
+      .then((v) => setTrayEnabled(v.config.show_in_tray))
       .catch(() => setTrayEnabled(false));
     invoke<boolean>("get_run_at_startup").then(setRunAtStartup).catch(() => setRunAtStartup(false));
     invoke<SuffixView>("get_suffixes")
@@ -71,6 +82,15 @@ export function SettingsTab({
     try {
       await invoke<AppConfig>("set_show_in_tray", { enabled: next });
       setTrayEnabled(next);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function onToggleDateFormat(next: "us" | "uk") {
+    try {
+      const config = await invoke<AppConfig>("set_date_format", { format: next });
+      onDateFormatChange(config.date_format);
     } catch {
       // ignore
     }
@@ -130,6 +150,32 @@ export function SettingsTab({
             disabled={trayEnabled === null}
             onCheckedChange={(next) => void onToggleTray(next)}
           />
+        </div>
+      </div>
+      <div className="mb-6 overflow-hidden rounded-lg border border-border">
+        <div className="flex items-center justify-between gap-4 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Date format</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              How dates like <code className="font-mono">01/02/2026</code> and
+              natural-language ones ("next Friday") are read: US (month/day) or
+              UK (day/month).
+            </p>
+          </div>
+          <Select
+            value={dateFormat}
+            onValueChange={(value: string | null) => {
+              if (value) void onToggleDateFormat(value as "us" | "uk");
+            }}
+          >
+            <SelectTrigger className="w-32">
+              <SelectValue className="uppercase" />
+            </SelectTrigger>
+            <SelectPopup>
+              <SelectItem value="us">US</SelectItem>
+              <SelectItem value="uk">UK</SelectItem>
+            </SelectPopup>
+          </Select>
         </div>
       </div>
       <div className="mb-1 flex items-center justify-between">

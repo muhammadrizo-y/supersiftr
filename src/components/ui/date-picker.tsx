@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { parseDate } from "chrono-node"
+import { en } from "chrono-node"
 import { format, parseISO } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 
@@ -33,12 +33,15 @@ function DatePicker({
   onChange,
   placeholder = "In 2 days",
   className,
+  dateFormat = "uk",
 }: {
   value: string
   onChange: (value: string) => void
   placeholder?: string
   className?: string
+  dateFormat?: "us" | "uk"
 }) {
+  const parser = dateFormat === "uk" ? en.GB : en.casual
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<Date | undefined>(() =>
     value ? parseISO(value) : undefined
@@ -48,7 +51,7 @@ function DatePicker({
   )
 
   const trimmed = text.trim()
-  const parsed = trimmed === "" ? undefined : parseDate(trimmed)
+  const parsed = trimmed === "" ? undefined : parser.parseDate(trimmed)
   const statusText =
     trimmed === "" ? "" : parsed ? `→ ${formatDisplay(parsed)}` : "Invalid date"
 
@@ -59,7 +62,7 @@ function DatePicker({
       onChange("")
       return
     }
-    const next = parseDate(raw.trim())
+    const next = parser.parseDate(raw.trim())
     if (next) {
       setDate(next)
       onChange(toISO(next))
