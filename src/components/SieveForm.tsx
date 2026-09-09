@@ -15,6 +15,7 @@ import { Combobox, type SelectOption } from "@/components/ui/combobox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectItem,
@@ -249,8 +250,10 @@ export function SieveForm({
   }));
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
-      <div className="space-y-1.5">
+    <form className="flex h-full min-h-0 flex-col" onSubmit={handleSubmit}>
+      <ScrollArea className="min-h-0 flex-1 pr-1">
+        <div className="flex flex-col gap-4">
+          <div className="space-y-1.5">
         <Label htmlFor="sieve-name">Sieve name *</Label>
         <Input
           id="sieve-name"
@@ -261,25 +264,42 @@ export function SieveForm({
         />
       </div>
 
-      <fieldset className="rounded-lg border border-border/70 bg-muted/30 p-3.5">
-        <legend className="sr-only">Watched folders</legend>
-        <div className="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <FolderSearch className="size-3.5" />
-          <span className="uppercase tracking-wider">Watched Folders</span>
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="flex h-10 items-center justify-between gap-2 border-b border-border bg-muted/40 px-3">
+          <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+            <FolderSearch className="size-3.5 shrink-0" />
+            <span className="truncate font-semibold uppercase tracking-wider">
+              Watched Folders
+            </span>
+          </div>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-7 shrink-0"
+                  aria-label="Add folder"
+                  onClick={addWatchedFolder}
+                >
+                  <Plus className="size-4" />
+                </Button>
+              }
+            />
+            <TooltipContent>Add folder</TooltipContent>
+          </Tooltip>
         </div>
-        <p className="mb-2 text-xs text-muted-foreground">
-          Files added to any of these folders will be checked against this sieve.
-        </p>
         {form.watched_folders.length === 0 ? (
-          <p className="py-1 text-sm text-muted-foreground">
-            No folders selected yet.
-          </p>
+          <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+            No folders watched yet. Click <strong>+</strong> to watch one.
+          </div>
         ) : (
-          <ul className="divide-y divide-border/50 overflow-hidden rounded-lg bg-background/60">
+          <ul className="divide-y divide-border">
             {form.watched_folders.map((folder) => (
               <li
                 key={folder}
-                className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                className="flex items-center justify-between gap-3 px-3 py-2 transition-colors hover:bg-muted/20"
               >
                 <span className="select-text truncate font-mono text-xs">
                   {folder}
@@ -291,7 +311,7 @@ export function SieveForm({
                         type="button"
                         variant="outline"
                         size="icon"
-                        className="size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        className="size-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => removeWatchedFolder(folder)}
                       >
                         <Minus className="size-3.5" />
@@ -304,26 +324,17 @@ export function SieveForm({
             ))}
           </ul>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={addWatchedFolder}
-        >
-          <Folder className="size-3.5" /> Add folder
-        </Button>
-      </fieldset>
+      </div>
 
-      <fieldset className="rounded-lg border border-border/70 bg-muted/30 p-3.5">
-        <legend className="sr-only">Match conditions</legend>
-        <div className="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Funnel className="size-3.5" />
-          <span className="uppercase tracking-wider">Match</span>
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="flex items-center gap-1.5 text-sm">
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="flex h-10 items-center justify-between gap-2 border-b border-border bg-muted/40 px-3">
+          <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Funnel className="size-3.5 shrink-0" />
+            <span className="shrink-0 font-semibold uppercase tracking-wider">
+              Match
+            </span>
+            <span className="font-normal text-muted-foreground/60">—</span>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-normal normal-case text-foreground">
               If
               <Select
                 value={form.mode}
@@ -331,7 +342,7 @@ export function SieveForm({
                   set("mode", value as ConditionMode)
                 }
               >
-                <SelectTrigger className="h-8 w-18 gap-1 text-sm">
+                <SelectTrigger className="h-6 w-16 gap-1 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectPopup>
@@ -340,41 +351,43 @@ export function SieveForm({
                 </SelectPopup>
               </Select>
               of the conditions are met
-            </p>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="size-8 shrink-0"
-                    aria-label="Add condition"
-                    onClick={() =>
-                      set("conditions", [
-                        ...form.conditions,
-                        { property: "kind", operator: "is", values: [] },
-                      ])
-                    }
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-                }
-              />
-              <TooltipContent>Add condition</TooltipContent>
-            </Tooltip>
+            </span>
           </div>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-7 shrink-0"
+                  aria-label="Add condition"
+                  onClick={() =>
+                    set("conditions", [
+                      ...form.conditions,
+                      { property: "kind", operator: "is", values: [] },
+                    ])
+                  }
+                >
+                  <Plus className="size-4" />
+                </Button>
+              }
+            />
+            <TooltipContent>Add condition</TooltipContent>
+          </Tooltip>
+        </div>
 
-          {form.conditions.length === 0 ? (
-            <p className="py-1 text-sm text-muted-foreground">
-              Add a condition to define what files match.
-            </p>
-          ) : (
-            <ul className="space-y-2">
+        {form.conditions.length === 0 ? (
+          <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+            No conditions defined. Click <strong>+</strong> to match specific
+            files.
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
               {form.conditions.map((c, i) => (
                 <li
                   key={i}
-                  className="flex items-center gap-2 rounded-lg bg-background/60 p-2"
+                  className="flex items-center gap-2 px-3 py-2 transition-colors hover:bg-muted/20"
                 >
                   <Select
                     value={c.property}
@@ -465,7 +478,7 @@ export function SieveForm({
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          className="size-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => removeCondition(i)}
                         >
                           <Minus className="size-3.5" />
@@ -478,52 +491,54 @@ export function SieveForm({
               ))}
             </ul>
           )}
-        </div>
-      </fieldset>
+      </div>
 
-      <fieldset className="rounded-lg border border-border/70 bg-muted/30 p-3.5">
-        <legend className="sr-only">Actions</legend>
-        <div className="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Zap className="size-3.5" />
-          <span className="uppercase tracking-wider">Actions</span>
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm">Do the following to the matched file:</p>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="size-8 shrink-0"
-                    aria-label="Add action"
-                    onClick={() =>
-                      set("actions", [
-                        ...form.actions,
-                        { type: "move", folder: "", name: "" },
-                      ])
-                    }
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-                }
-              />
-              <TooltipContent>Add action</TooltipContent>
-            </Tooltip>
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="flex h-10 items-center justify-between gap-2 border-b border-border bg-muted/40 px-3">
+          <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+            <Zap className="size-3.5 shrink-0" />
+            <span className="truncate font-semibold uppercase tracking-wider">
+              Actions
+            </span>
+            <span className="truncate font-normal normal-case">
+              Do the following to the matched file
+            </span>
           </div>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-7 shrink-0"
+                  aria-label="Add action"
+                  onClick={() =>
+                    set("actions", [
+                      ...form.actions,
+                      { type: "move", folder: "", name: "" },
+                    ])
+                  }
+                >
+                  <Plus className="size-4" />
+                </Button>
+              }
+            />
+            <TooltipContent>Add action</TooltipContent>
+          </Tooltip>
+        </div>
 
-          {form.actions.length === 0 ? (
-            <p className="py-1 text-sm text-muted-foreground">
-              Add an action to run on matched files.
-            </p>
-          ) : (
-            <ul className="space-y-2">
+        {form.actions.length === 0 ? (
+          <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+            No actions defined. Click <strong>+</strong> to run one on matched
+            files.
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
               {form.actions.map((a, i) => (
                 <li
                   key={i}
-                  className="flex items-center gap-2 rounded-lg bg-background/60 p-2"
+                  className="flex items-center gap-2 px-3 py-2 transition-colors hover:bg-muted/20"
                 >
                   <Select
                     value={a.type}
@@ -596,7 +611,7 @@ export function SieveForm({
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          className="size-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => removeAction(i)}
                         >
                           <Minus className="size-3.5" />
@@ -609,18 +624,19 @@ export function SieveForm({
               ))}
             </ul>
           )}
-          <p className="text-xs text-muted-foreground">
-            Rename replaces the file's name while keeping its suffix (the
-            recognized file ending). Compound suffixes like{" "}
-            <code>.tar.gz</code> are kept whole. Use{" "}
-            <code>{"{name}"}</code> in the pattern to keep the original base
-            name, e.g. <code>{"{name}_processed"}</code>. Actions run in
-            order, each on the result of the previous one.
-          </p>
-        </div>
-      </fieldset>
+      <div className="border-t border-border bg-muted/20 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+        Rename replaces the file's name while keeping its suffix (the
+        recognized file ending). Compound suffixes like{" "}
+        <code>.tar.gz</code> are kept whole. Use{" "}
+        <code>{"{name}"}</code> in the pattern to keep the original base
+        name, e.g. <code>{"{name}_processed"}</code>. Actions run in
+        order, each on the result of the previous one.
+      </div>
+      </div>
+      </div>
+      </ScrollArea>
 
-      <div className="sticky bottom-0 -mx-6 -mb-5 flex items-center justify-end gap-2 border-t border-border/60 bg-card px-6 py-4">
+      <div className="-mx-6 mt-4 flex shrink-0 items-center justify-end gap-2 border-t border-border/60 bg-card px-6 py-4">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>

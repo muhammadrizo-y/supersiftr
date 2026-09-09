@@ -241,13 +241,15 @@ function App() {
   function renderMain() {
     if (view.kind === "new") {
       return (
-        <section className="px-6 py-5">
-          <h2 className="mb-4 text-2xl font-semibold">New sieve</h2>
-          <SieveForm
-            kinds={kinds}
-            onSubmit={addSieve}
-            onCancel={cancelForm}
-          />
+        <section className="flex h-full min-h-0 flex-col px-6 pt-5">
+          <h2 className="mb-4 shrink-0 text-2xl font-semibold">New sieve</h2>
+          <div className="min-h-0 flex-1">
+            <SieveForm
+              kinds={kinds}
+              onSubmit={addSieve}
+              onCancel={cancelForm}
+            />
+          </div>
         </section>
       );
     }
@@ -325,15 +327,17 @@ function App() {
 
     if (view.kind === "edit") {
       return (
-        <section className="px-6 py-5">
-          <h2 className="mb-4 text-2xl font-semibold">Edit sieve</h2>
-          <SieveForm
-            key={view.index}
-            kinds={kinds}
-            initial={sieve}
-            onSubmit={(updated) => void updateSieve(view.index, updated)}
-            onCancel={cancelForm}
-          />
+        <section className="flex h-full min-h-0 flex-col px-6 pt-5">
+          <h2 className="mb-4 shrink-0 text-2xl font-semibold">Edit sieve</h2>
+          <div className="min-h-0 flex-1">
+            <SieveForm
+              key={view.index}
+              kinds={kinds}
+              initial={sieve}
+              onSubmit={(updated) => void updateSieve(view.index, updated)}
+              onCancel={cancelForm}
+            />
+          </div>
         </section>
       );
     }
