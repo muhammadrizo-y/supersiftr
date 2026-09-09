@@ -45,7 +45,7 @@ function DatePicker({
         <CalendarIcon className="size-4" />
         {date ? format(date, "PPP") : <span>{placeholder}</span>}
       </PopoverTrigger>
-      <PopoverContent className="p-0" align="start">
+      <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
           selected={date}
