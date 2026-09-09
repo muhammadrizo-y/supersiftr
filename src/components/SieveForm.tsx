@@ -266,7 +266,7 @@ export function SieveForm({
   return (
     <form className="flex h-full min-h-0 flex-col" onSubmit={handleSubmit}>
       <ScrollArea className="-mx-6 min-h-0 flex-1">
-        <div className="flex flex-col gap-4 px-6">
+        <div className="flex flex-col gap-4 px-6 py-3">
           <div className="space-y-1.5">
         <Label htmlFor="sieve-name">Sieve name *</Label>
         <Input
