@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronDown,
   ChevronUp,
@@ -65,6 +66,7 @@ export function Combobox({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [geom, setGeom] = useState<{ x: number; y: number; width: number } | null>(null);
 
   const q = query.trim().toLowerCase();
   const labelFor = (v: string) =>
@@ -106,9 +108,14 @@ export function Combobox({
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
+      const target = e.target as Node;
+      if (
+        containerRef.current?.contains(target) ||
+        listRef.current?.contains(target)
+      ) {
+        return;
       }
+      setOpen(false);
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
@@ -182,16 +189,49 @@ export function Combobox({
   const listId = useId();
   const actDesc = activeDescId(listId, showDropdown, highlight, rows.length, showAddRow);
 
+  useLayoutEffect(() => {
+    if (!showDropdown) {
+      setGeom(null);
+      return;
+    }
+    const apply = () => {
+      const trigger = containerRef.current;
+      const list = listRef.current;
+      if (!trigger) return;
+      const t = trigger.getBoundingClientRect();
+      const height = Math.min(list?.offsetHeight ?? 224, 224);
+      const openBelow = window.innerHeight - t.bottom >= t.top;
+      const y = openBelow ? t.bottom + 6 : Math.max(8, t.top - height - 6);
+      setGeom({
+        x: Math.round(t.left),
+        y: Math.round(y),
+        width: Math.round(t.width),
+      });
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    window.addEventListener("scroll", apply, true);
+    return () => {
+      window.removeEventListener("resize", apply);
+      window.removeEventListener("scroll", apply, true);
+    };
+  }, [showDropdown, query]);
+
   return (
     <div ref={containerRef} className="relative">
-      {showDropdown && (
+      {showDropdown && createPortal(
         <div
           ref={listRef}
           id={listId}
           role="listbox"
           aria-multiselectable="true"
           aria-label={`${label} options`}
-          className="absolute bottom-full left-0 right-0 z-50 mb-1.5 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 scrollbar-gutter-stable duration-100 animate-in fade-in-0"
+          style={
+            geom
+              ? { top: geom.y, left: geom.x, width: geom.width }
+              : { visibility: "hidden" }
+          }
+          className="fixed z-50 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 scrollbar-gutter-stable duration-100 animate-in fade-in-0"
         >
           {rows.length === 0 && !showAddRow && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
@@ -248,8 +288,9 @@ export function Combobox({
               </span>
             </div>
           )}
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
 
       <div
         data-popup-open={open || undefined}
