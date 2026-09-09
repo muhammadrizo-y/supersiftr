@@ -1,9 +1,26 @@
 import { useState, type FormEvent } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { CSS } from "@dnd-kit/utilities";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Folder,
   FolderSearch,
   Funnel,
+  GripVertical,
   Minus,
   Plus,
   Zap,
@@ -28,6 +45,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { allKnownExtensions } from "@/lib/sieves";
+import { cn } from "@/lib/utils";
 import type {
   ActionType,
   ConditionMode,
@@ -47,6 +65,7 @@ type ConditionRowState = {
 };
 
 type ActionRowState = {
+  id: number;
   type: ActionType;
   folder: string;
   name: string;
@@ -115,15 +134,35 @@ async function pickFolder(): Promise<string | null> {
   return typeof selected === "string" ? selected : null;
 }
 
+let nextActionRowId = 0;
+
 function actionRowFromAction(action: RuleAction): ActionRowState {
   switch (action.type) {
     case "move":
     case "copy":
-      return { type: action.type, folder: action.folder, name: "", mode: "recycle" };
+      return {
+        id: ++nextActionRowId,
+        type: action.type,
+        folder: action.folder,
+        name: "",
+        mode: "recycle",
+      };
     case "rename":
-      return { type: "rename", folder: "", name: action.name, mode: "recycle" };
+      return {
+        id: ++nextActionRowId,
+        type: "rename",
+        folder: "",
+        name: action.name,
+        mode: "recycle",
+      };
     case "delete":
-      return { type: "delete", folder: "", name: "", mode: action.mode };
+      return {
+        id: ++nextActionRowId,
+        type: "delete",
+        folder: "",
+        name: "",
+        mode: action.mode,
+      };
   }
 }
 
@@ -136,6 +175,134 @@ function formFromSieve(sieve?: Sieve): SieveFormState {
     conditions: sieve.conditions.map((c) => ({ ...c })),
     actions: sieve.actions.map(actionRowFromAction),
   };
+}
+
+function ActionItemRow({
+  action,
+  index,
+  onTypeChange,
+  onPatch,
+  onRemove,
+}: {
+  action: ActionRowState;
+  index: number;
+  onTypeChange: (index: number, type: ActionType) => void;
+  onPatch: (index: number, patch: Partial<ActionRowState>) => void;
+  onRemove: (index: number) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: action.id });
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "relative flex items-center gap-2 px-3 py-2 transition-colors",
+        isDragging ? "z-10 bg-accent/50" : "hover:bg-muted/20",
+      )}
+    >
+      <button
+        type="button"
+        aria-label="Reorder action"
+        className="shrink-0 cursor-grab rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground active:cursor-grabbing"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-4" />
+      </button>
+      <Select
+        value={action.type}
+        onValueChange={(value: string | null) => onTypeChange(index, value as ActionType)}
+      >
+        <SelectTrigger className="h-8 w-28 shrink-0">
+          <SelectValue>
+            {ACTION_OPTIONS.find((o) => o.value === action.type)?.label ?? action.type}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectPopup>
+          {ACTION_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectPopup>
+      </Select>
+      {action.type === "delete" ? (
+        <Select
+          value={action.mode}
+          onValueChange={(value: string | null) =>
+            onPatch(index, { mode: value as DeleteMode })
+          }
+        >
+          <SelectTrigger className="h-8 w-44 shrink-0 gap-1">
+            <SelectValue>
+              {DELETE_OPTIONS.find((o) => o.value === action.mode)?.label ?? action.mode}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectPopup>
+            {DELETE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      ) : (
+        <>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {action.type === "rename" ? "to:" : "to folder:"}
+          </span>
+          {action.type === "rename" ? (
+            <div className="flex flex-1 flex-col gap-1">
+              <Input
+                value={action.name}
+                onChange={(e) => onPatch(index, { name: e.currentTarget.value })}
+                placeholder="report"
+                className="flex-1"
+              />
+            </div>
+          ) : (
+            <>
+              <Input
+                value={action.folder}
+                onChange={(e) => onPatch(index, { folder: e.currentTarget.value })}
+                placeholder="D:\Temp"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const folder = await pickFolder();
+                  if (folder) onPatch(index, { folder });
+                }}
+              >
+                <Folder className="size-3.5" /> Browse…
+              </Button>
+            </>
+          )}
+        </>
+      )}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="ml-auto size-7 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive!"
+              onClick={() => onRemove(index)}
+            >
+              <Minus className="size-3.5" />
+            </Button>
+          }
+        />
+        <TooltipContent>Remove action</TooltipContent>
+      </Tooltip>
+    </li>
+  );
 }
 
 export function SieveForm({
@@ -152,6 +319,21 @@ export function SieveForm({
   dateFormat: "us" | "uk";
 }) {
   const [form, setForm] = useState<SieveFormState>(() => formFromSieve(initial));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  );
+
+  function handleActionDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    setForm((prev) => {
+      const oldIndex = prev.actions.findIndex((a) => a.id === active.id);
+      const newIndex = prev.actions.findIndex((a) => a.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return prev;
+      return { ...prev, actions: arrayMove(prev.actions, oldIndex, newIndex) };
+    });
+  }
 
   const set = <K extends keyof SieveFormState>(key: K, value: SieveFormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -524,7 +706,13 @@ export function SieveForm({
                   onClick={() =>
                     set("actions", [
                       ...form.actions,
-                      { type: "move", folder: "", name: "", mode: "recycle" },
+                      {
+                        id: ++nextActionRowId,
+                        type: "move",
+                        folder: "",
+                        name: "",
+                        mode: "recycle",
+                      },
                     ])
                   }
                 >
@@ -542,107 +730,27 @@ export function SieveForm({
             files.
           </div>
         ) : (
-          <ul className="divide-y divide-border">
-              {form.actions.map((a, i) => (
-                <li
-                  key={i}
-                  className="flex items-center gap-2 px-3 py-2 transition-colors hover:bg-muted/20"
-                >
-                  <Select
-                    value={a.type}
-                    onValueChange={(value: string | null) =>
-                      setActionType(i, value as ActionType)
-                    }
-                  >
-                    <SelectTrigger className="h-8 w-28 shrink-0">
-                      <SelectValue>
-                        {ACTION_OPTIONS.find((o) => o.value === a.type)?.label ?? a.type}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectPopup>
-                      {ACTION_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                    </SelectPopup>
-                  </Select>
-                  {a.type === "delete" ? (
-                    <Select
-                      value={a.mode}
-                      onValueChange={(value: string | null) =>
-                        updateAction(i, { mode: value as DeleteMode })
-                      }
-                    >
-                      <SelectTrigger className="h-8 w-44 shrink-0 gap-1">
-                        <SelectValue>
-                          {DELETE_OPTIONS.find((o) => o.value === a.mode)?.label ?? a.mode}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectPopup>
-                        {DELETE_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>
-                            {o.label}
-                          </SelectItem>
-                        ))}
-                      </SelectPopup>
-                    </Select>
-                  ) : (
-                    <>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {a.type === "rename" ? "to:" : "to folder:"}
-                      </span>
-                      {a.type === "rename" ? (
-                        <div className="flex flex-1 flex-col gap-1">
-                          <Input
-                            value={a.name}
-                            onChange={(e) => updateAction(i, { name: e.currentTarget.value })}
-                            placeholder="report"
-                            className="flex-1"
-                          />
-                        </div>
-                      ) : (
-                        <>
-                          <Input
-                            value={a.folder}
-                            onChange={(e) => updateAction(i, { folder: e.currentTarget.value })}
-                            placeholder="D:\Temp"
-                            className="flex-1"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              const folder = await pickFolder();
-                              if (folder) updateAction(i, { folder });
-                            }}
-                          >
-                            <Folder className="size-3.5" /> Browse…
-                          </Button>
-                        </>
-                      )}
-                    </>
-                  )}
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="ml-auto size-7 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive!"
-                          onClick={() => removeAction(i)}
-                        >
-                          <Minus className="size-3.5" />
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>Remove action</TooltipContent>
-                  </Tooltip>
-                </li>
-              ))}
-            </ul>
+          <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+              onDragEnd={handleActionDragEnd}
+            >
+            <SortableContext items={form.actions.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+              <ul className="divide-y divide-border">
+                {form.actions.map((a, i) => (
+                  <ActionItemRow
+                    key={a.id}
+                    action={a}
+                    index={i}
+                    onTypeChange={setActionType}
+                    onPatch={updateAction}
+                    onRemove={removeAction}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
           )}
       <div className="border-t border-border bg-muted/20 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
         Rename replaces the file's name while keeping its suffix (the
