@@ -480,7 +480,7 @@ export function SieveForm({
                         onChange={(value) =>
                           updateCondition(i, { values: value ? [value] : [] })
                         }
-                        placeholder="Pick a date"
+                        placeholder="e.g. next Friday"
                         className="w-full"
                       />
                     )}
