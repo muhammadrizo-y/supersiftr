@@ -180,6 +180,9 @@ export function Combobox({
       return;
     }
     if (e.key === "Escape") {
+      if (open) {
+        e.stopPropagation();
+      }
       setOpen(false);
     }
   }
