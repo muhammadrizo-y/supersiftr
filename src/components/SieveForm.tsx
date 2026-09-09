@@ -251,8 +251,8 @@ export function SieveForm({
 
   return (
     <form className="flex h-full min-h-0 flex-col" onSubmit={handleSubmit}>
-      <ScrollArea className="min-h-0 flex-1 pr-1">
-        <div className="flex flex-col gap-4">
+      <ScrollArea className="-mx-6 min-h-0 flex-1">
+        <div className="flex flex-col gap-4 px-6">
           <div className="space-y-1.5">
         <Label htmlFor="sieve-name">Sieve name *</Label>
         <Input
@@ -311,7 +311,7 @@ export function SieveForm({
                         type="button"
                         variant="outline"
                         size="icon"
-                        className="size-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        className="size-7 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive!"
                         onClick={() => removeWatchedFolder(folder)}
                       >
                         <Minus className="size-3.5" />
@@ -478,7 +478,7 @@ export function SieveForm({
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="size-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          className="size-7 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive!"
                           onClick={() => removeCondition(i)}
                         >
                           <Minus className="size-3.5" />
@@ -611,7 +611,7 @@ export function SieveForm({
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="size-7 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          className="size-7 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive!"
                           onClick={() => removeAction(i)}
                         >
                           <Minus className="size-3.5" />
@@ -636,7 +636,7 @@ export function SieveForm({
       </div>
       </ScrollArea>
 
-      <div className="-mx-6 mt-4 flex shrink-0 items-center justify-end gap-2 border-t border-border/60 bg-card px-6 py-4">
+      <div className="-mx-6 flex shrink-0 items-center justify-end gap-2 border-t border-border/60 bg-card px-6 py-4">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>

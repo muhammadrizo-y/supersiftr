@@ -88,8 +88,9 @@ function ScrollArea({
     setDragging(false);
   };
 
-  const active = dragging || hovered;
-  const show = thumb.height > 0 && (scrolled || hovered || dragging);
+const active = dragging || hovered;
+  const scrollable = thumb.height > 0;
+  const show = scrollable && (scrolled || hovered || dragging);
 
   return (
     <div className={cn("relative min-h-0 min-w-0", className)}>
@@ -103,7 +104,11 @@ function ScrollArea({
         {children}
       </div>
       <div
-        className="absolute inset-y-0 right-0 w-2"
+        className={cn(
+          "absolute inset-y-0 right-0 transition-[width] duration-200",
+          active ? "w-3.5" : "w-2",
+          !scrollable && "pointer-events-none",
+        )}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onPointerDown={onPointerDown}
@@ -115,7 +120,7 @@ function ScrollArea({
         <div
           className={cn(
             "absolute rounded-full bg-foreground/25 transition-[width,background-color,opacity] duration-200",
-            active ? "w-1.5 bg-foreground/40" : "w-1"
+            active ? "w-2 bg-foreground/40" : "w-1",
           )}
           style={{
             top: thumb.top,

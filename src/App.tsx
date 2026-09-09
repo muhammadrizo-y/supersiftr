@@ -242,7 +242,7 @@ function App() {
     if (view.kind === "new") {
       return (
         <section className="flex h-full min-h-0 flex-col px-6 pt-5">
-          <h2 className="mb-4 shrink-0 text-2xl font-semibold">New sieve</h2>
+          <h2 className="-mx-6 shrink-0 border-b border-border/60 px-6 pb-4 text-2xl font-semibold">New sieve</h2>
           <div className="min-h-0 flex-1">
             <SieveForm
               kinds={kinds}
@@ -328,7 +328,7 @@ function App() {
     if (view.kind === "edit") {
       return (
         <section className="flex h-full min-h-0 flex-col px-6 pt-5">
-          <h2 className="mb-4 shrink-0 text-2xl font-semibold">Edit sieve</h2>
+          <h2 className="-mx-6 shrink-0 border-b border-border/60 px-6 pb-4 text-2xl font-semibold">Edit sieve</h2>
           <div className="min-h-0 flex-1">
             <SieveForm
               key={view.index}
