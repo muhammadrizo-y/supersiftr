@@ -1,5 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useState, type FormEvent } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Folder,
@@ -29,7 +28,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { allKnownExtensions } from "@/lib/sieves";
-import { formatRenamePreview } from "@/lib/suffixes";
 import type {
   ActionType,
   ConditionMode,
@@ -40,7 +38,6 @@ import type {
   RuleAction,
   Sieve,
   SieveCondition,
-  SuffixView,
 } from "@/types";
 
 type ConditionRowState = {
@@ -155,12 +152,6 @@ export function SieveForm({
   dateFormat: "us" | "uk";
 }) {
   const [form, setForm] = useState<SieveFormState>(() => formFromSieve(initial));
-  const [customSuffixes, setCustomSuffixes] = useState<string[]>([]);
-  const [previewFile, setPreviewFile] = useState("photo.tar.gz");
-
-  useEffect(() => {
-    invoke<SuffixView>("get_suffixes").then((s) => setCustomSuffixes(s.custom)).catch(() => {});
-  }, []);
 
   const set = <K extends keyof SieveFormState>(key: K, value: SieveFormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -609,18 +600,6 @@ export function SieveForm({
                             placeholder="report"
                             className="flex-1"
                           />
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Input
-                              value={previewFile}
-                              onChange={(e) => setPreviewFile(e.currentTarget.value)}
-                              aria-label="Sample file name for preview"
-                              className="h-6 w-40 font-mono text-[11px]"
-                            />
-                            <span>→</span>
-                            <span className="font-mono">
-                              {formatRenamePreview(previewFile, a.name, customSuffixes)}
-                            </span>
-                          </div>
                         </div>
                       ) : (
                         <>
