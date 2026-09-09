@@ -88,8 +88,8 @@ const OPERATOR_OPTIONS: Record<
     { value: "not_matches", label: "doesn't match" },
   ],
   modified: [
-    { value: "after", label: "after" },
     { value: "before", label: "before" },
+    { value: "after", label: "after" },
   ],
 };
 
