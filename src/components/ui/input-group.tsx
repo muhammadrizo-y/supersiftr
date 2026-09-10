@@ -58,6 +58,9 @@ function InputGroupAddon({
         if ((e.target as HTMLElement).closest("button")) {
           return
         }
+        if (!e.currentTarget.contains(e.target as Node)) {
+          return
+        }
         e.currentTarget.parentElement?.querySelector("input")?.focus()
       }}
       {...props}
