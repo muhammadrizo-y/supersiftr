@@ -4,11 +4,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project overview
 
-A **Tauri v2** desktop app for Windows (also macOS/Linux compatible) that automates
-file organization. Users define **sieves**: when a file matching certain
-conditions appears in one of the watched folders, the app runs a list of actions
-(move/copy/rename) or triggers a kind. A background `notify` watcher reacts to
-new/changed files.
+A **Tauri v2** desktop app for Windows that automates file organization. Users define **sieves**: when a file matching certain conditions appears in one of the watched folders, the app runs a list of actions (move/copy/rename) or triggers a kind. A background `notify` watcher reacts to new/changed files.
 
 Stack:
 - **Frontend**: React 19 + TypeScript + Vite 7, Tailwind CSS v4, shadcn/ui CLI with
@@ -18,9 +14,22 @@ Stack:
 - **State**: `sieves`, `kinds`, and settings are read/written as JSON on disk by
   the Rust backend; the UI calls `#[tauri::command]`s exposed over IPC.
 
-## Commands
+## Zero-tolerance rules
 
-Run from the repository root (`D:\Muhammadrizo\Code\supersiftr`):
+- **Default to no code comments.** Add a comment only after solving a bug or
+  working through a complex issue, and only when it captures non-obvious context
+  a future investigator genuinely needs — e.g. why a fix looks the way it does,
+  a platform quirk being worked around, or a non-obvious invariant chosen after
+  investigation. Banned: narrating what code does, restating types, JSDoc that
+  paraphrases parameter names, "TODO: refactor" notes, and comments that just
+  describe the change being made. When in doubt, prefer better naming/types over
+  a comment. Applies to Rust, TS, and any other language.
+- **Do not commit secrets.** Inspect `git status`/`git diff` before committing and
+  only stage intended files.
+- **Do not start extra dev servers.** Assume the dev server is already running
+  when one is needed.
+
+## Commands
 
 ```powershell
 npm run build        # TypeScript check (tsc) + Vite production build (outputs dist/)
@@ -32,43 +41,35 @@ npm run tauri dev    # Dev server + launch the desktop app
 committing. The user does the real UI testing manually — no screenshots, do not
 keep the app running after verifying.
 
-## Project layout
+## Post-edit checks (run before you say "done")
 
-- `src/` — React frontend
-  - `App.tsx` — app shell only: global state (sieves/kinds/activity/view), IPC
-    handlers, view routing, and the two-pane layout.
-  - `types.ts` — shared TS types mirroring the Rust domain (`Sieve`, `Kind`,
-    `RuleAction`, `SieveCondition`, `AppConfig`, `View`).
-  - `main.tsx` — entry; syncs window background with `prefers-color-scheme` and
-    shows the window after mount.
-  - `components/ui/` — shadcn/Base UI primitives (button, badge, card, calendar,
-    date-picker, dialog, input, input-group, label, popover, sonner, textarea,
-    tooltip, command, combobox).
-  - `components/Sidebar.tsx` — left nav.
-  - `components/SieveForm.tsx` — the sieve create/edit form (conditions +
-    actions + rename pattern).
-  - `components/KindForm.tsx` — kind create/edit form.
-  - `components/SettingsTab.tsx` — settings, kind management, compound-
-    extension management.
-  - `components/WindowControls.tsx` — custom minimize/maximize/close buttons.
-  - `lib/sieves.ts` — shared sieve helpers (`describeConditions`, `kindByTitle`,
-    `missingKinds`, …).
-- `src-tauri/` — Rust backend
-  - `src/main.rs` — binary entry (thin).
-  - `src/lib.rs` — `#[tauri::command]`s + app setup (`run()` in `supersiftr_lib`).
-  - `src/sieves.rs` — `Sieve`, `SieveCondition`, `RuleAction`, matching logic.
-  - `src/actions.rs` — performs the move/copy/rename actions.
-  - `src/suffix.rs` — compound filename extensions (`.tar.gz`), longest-match
-    split; built-in defaults + custom list read from `config.json`.
-  - `src/config.rs` — loads/saves `config.json` (settings incl. custom
-    compound extensions).
-  - `src/kinds.rs` — "kind" named extension sets (`Kind`, `KindStore`),
-    default kinds + `default_kinds.json`.
-  - `src/state.rs` — `AppState` (mutex-guarded watcher/sieves/kinds/log) + reload.
-  - `src/watcher.rs` — `FileWatcher`, debounced recursive + single-file watching.
-  - `src/logging.rs` — activity log persisted to disk.
-  - `capabilities/default.json` — Tauri permissions for the main window.
-  - `tauri.conf.json` — window config, bundle targets.
+Prefer scoped, fast checks over full gates. There is no formatter/linter
+configured (no Biome/ESLint/Prettier/rustfmt/clippy config), so rely on the
+compiler and tests:
+
+- Touched any Rust file → `cargo test` (run with workdir `src-tauri`).
+- Touched any TS/TSX file → `npm run build` (runs `tsc` + Vite build).
+- Touched both → run both.
+
+## Rust — write the clean form the FIRST time
+
+No clippy config is enforced in CI, but keep the code idiomatic so it stays
+clippy-clean. Prefer the right column:
+
+| ❌ Don't write | ✅ Write instead |
+|---|---|
+| `dbg!(x)` | delete it |
+| `if a { if b { … } }` | `if a && b { … }` |
+| `x.clone()` when `x: Copy` | `x` |
+| `iter.map(\|x\| foo(x))` | `iter.map(foo)` |
+| `fn f(v: &Vec<T>)` / `fn f(s: &String)` | `fn f(v: &[T])` / `fn f(s: &str)` |
+| `v.len() == 0` / `v.len() > 0` | `v.is_empty()` / `!v.is_empty()` |
+| `opt.unwrap_or_else(\|\| 42)` (cheap default) | `opt.unwrap_or(42)` |
+| `for i in 0..v.len() { v[i] … }` | `for item in &v { … }` or `.iter().enumerate()` |
+| `value.min(max).max(min)` | `value.clamp(min, max)` |
+
+Handle every `Result`/`Option` explicitly (`?`, `.unwrap()`, `.ok()`, …). For a
+`Result` you consciously discard, `let _ = …;` is the correct escape hatch.
 
 ## Architecture / data flow
 
@@ -83,42 +84,6 @@ keep the app running after verifying.
 - `View` in `types.ts` drives what content area is shown: sieve detail, edit form,
   new sieve form, activity log, or settings.
 
-### Key conventions for new sieves/actions
-- `Sieve` is `{ name, watched_folders, mode: all|any, conditions, actions }`.
-  `SieveCondition` is `{ property: kind|extension|name|modified, operator, values }`:
-  kind/extension use `is`/`is_not`; name uses `matches`/`not_matches`; modified uses
-  `after`/`before`. Kind values are kind ids; extension/name values are lists;
-  modified uses a single YYYY-MM-DD in `values[0]`.
-- `RuleAction` is a tagged enum serialized to `{ "type": "move" | "copy" | "rename",
-  ... }` with `destination` or `pattern`; rename patterns can contain `{name}`.
-- Kind ids reference kinds by name (kebab-case); a missing (or disabled) kind
-  contributes no extensions for `is` but matches everything for `is_not` and
-  doesn't break the sieve (`Sieve::missing_kinds`).
-- Sieves are evaluated in order; `Sieve::applies_to` checks `watched_folders`.
-  Empty conditions never match; `Sieve::is_runnable` requires >=1 condition and
-  >=1 action.
-- Versioning: each JSON file (`config.json`, `sieves.json`, `kinds.json`,
-  `default_kinds.json`) carries its own integer
-  `"schema_version"` field, independently maintained per file
-  (`CONFIG_SCHEMA_VERSION`, `SIEVES_SCHEMA_VERSION`, `KINDS_SCHEMA_VERSION`,
-  `DEFAULT_KINDS_SCHEMA_VERSION`, currently all 1)
-  that only bumps on that file's schema breaks. Loading is tolerant:
-  missing/unknown versions are treated as latest. Per-file migrations are not
-  implemented yet — and don't need to be: as long as this is pre-1.0, data
-  format changes that aren't in a released build are handled by hand, not by
-  migration code.
-
-## Windows / window management
-
-- `decorations: false` → custom title bar in `TitleBar()` (`src/App.tsx`) with
-  native-looking minimize/maximize/close buttons using `title` attributes (native
-  OS tooltips). Tauri's `titleBarStyle: "Overlay"`/`hiddenTitle` are macOS-only;
-  on Windows there's no native control overlay, so controls are custom HTML.
-- Window starts hidden (`visible: false`) and is shown from the frontend after
-  mount to avoid white flash; background color is synced with the OS theme.
-- Watch out: layout must stay desktop-safe (sidebar flush/square, body
-  `overflow-hidden`, `h-full`).
-
 ## Styling / UI conventions
 
 - Tailwind CSS v4 with shadcn theme tokens (`bg-background`, `text-foreground`,
@@ -128,8 +93,19 @@ keep the app running after verifying.
   classes.
 - Base UI components use `render={<.../>}` instead of Radix `asChild`.
 - Keep tooltips minimal/native (neutral background, quick linear fade, no arrow).
-- Follow the existing one-commit-per-logical-change style with conventional commit
-  messages: `type(scope): description`.
+
+## Commits
+
+- Conventional style: `type(scope): description` (e.g. `feat(conditions): add type
+  (file/folder) condition`, `fix(calendar): use base-ui Select for month/year
+  dropdowns`). Types seen in history: `feat`, `fix`, `chore`, `refactor`, `test`.
+- Commit each logical change separately. When a task spans multiple independent
+  changes, make one commit per change rather than one combined commit.
+- Stage only the files that belong to the change. Leave unrelated files — and any
+  files the user may have edited manually (e.g. `README.md`) — uncommitted or
+  unstaged, preserving their original state.
+- Never add `Co-authored-by` or other attribution trailers. Commit as the user
+  only.
 
 ## Gotchas
 
@@ -137,6 +113,15 @@ keep the app running after verifying.
   all watchers and re-registers every watched folder. Correct but O(n) per
   mutation with brief coverage drops; accepted tradeoff for a small sieve count
   (no incremental watch management).
-- Do not add code comments unless requested.
-- Do not commit secrets. Inspect `git status`/`git diff` before committing and only
-  stage intended files.
+
+## Deep investigation default
+
+When asked to inspect, review, optimize, secure, or fix something, do not stop at
+the obvious local change. Trace the full path first:
+
+- identify the real root cause, not only the symptom
+- trace callers, side effects, and platform-specific paths (Windows)
+- compare old vs new behavior when reviewing a diff
+- call out what is verified vs merely plausible
+- prefer the smallest correct fix, but only after checking whether the narrow fix
+  misses related consequences
