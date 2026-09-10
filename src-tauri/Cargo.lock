@@ -3413,6 +3413,7 @@ dependencies = [
  "glob",
  "notify",
  "notify-debouncer-mini",
+ "regex",
  "serde",
  "serde_json",
  "tauri",

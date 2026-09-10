@@ -93,6 +93,12 @@ export function SettingsTab({
     }
   }
 
+  const compoundPattern = /^[a-zA-Z0-9]+(?:\.[a-zA-Z0-9]+)+$/;
+  const validateCompound = (raw: string) => {
+    const s = raw.trim().toLowerCase();
+    return compoundPattern.test(s) && !compoundDefaults.includes(s);
+  };
+
   async function saveCustomCompounds(custom: string[]) {
     try {
       const updated = await invoke<string[]>("set_compound_extensions", { custom });
@@ -298,17 +304,19 @@ export function SettingsTab({
           Endings a rename preserves as a unit, so <code>.tar.gz</code> stays
           part of the name instead of being reduced to <code>.gz</code>. The
           built-in ones are always on and can't be removed; add your own to
-          teach the app endings like <code>.backup.tar.xz</code>.
+          teach the app endings like <code>backup.tar.xz</code> (case
+          doesn't matter).
         </p>
         <Combobox
           options={compoundDefaults.map((s) => ({ value: s, label: s }))}
           selected={[...compoundDefaults, ...customCompounds]}
           locked={compoundDefaults}
+          validateCustom={validateCompound}
           onChange={(values) => {
             const custom = values.filter((v) => !compoundDefaults.includes(v));
             void saveCustomCompounds(custom);
           }}
-          placeholder=".backup.tar.xz"
+          placeholder="backup.tar.xz"
           label="compound extensions"
         />
       </div>

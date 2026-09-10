@@ -5,6 +5,7 @@ import {
   ChevronUp,
   File,
   Image,
+  Info,
   Plus,
   Video,
   X,
@@ -51,6 +52,7 @@ export function Combobox({
   onBlur,
   label = "select values",
   locked = [],
+  validateCustom,
 }: {
   options: SelectOption[];
   selected: string[];
@@ -60,6 +62,7 @@ export function Combobox({
   onBlur?: () => void;
   label?: string;
   locked?: string[];
+  validateCustom?: (raw: string) => boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -85,6 +88,8 @@ export function Combobox({
     query.trim() !== "" &&
     !options.some((o) => o.value.toLowerCase() === q) &&
     !selected.includes(query.trim());
+
+  const addInvalid = showAddRow && !!validateCustom && !validateCustom(query);
 
   const rows: { type: "existing"; value: string; label: string }[] = filtered.map(
     (o) => ({ type: "existing", value: o.value, label: o.label }),
@@ -134,6 +139,10 @@ export function Combobox({
   }
 
   function addCustom(value: string) {
+    if (validateCustom && !validateCustom(value)) {
+      setOpen(true);
+      return;
+    }
     const normalized = allowCustom ? value.trim().toLowerCase() : value.trim();
     if (normalized && !selected.includes(normalized)) {
       onChange([...selected, normalized]);
@@ -277,20 +286,33 @@ export function Combobox({
               role="option"
               aria-selected={highlight === rows.length}
               onMouseEnter={() => setHighlight(rows.length)}
-              onClick={() => addCustom(query)}
+              onClick={addInvalid ? undefined : () => addCustom(query)}
               className={cn(
-                "flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm",
+                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm",
+                addInvalid
+                  ? "cursor-default opacity-60"
+                  : "cursor-pointer",
                 highlight === rows.length
                   ? "bg-accent text-accent-foreground"
                   : "text-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
-              <Plus className="size-4 shrink-0" />
+              {addInvalid ? (
+                <Info className="size-4 shrink-0 text-muted-foreground" />
+              ) : (
+                <Plus className="size-4 shrink-0" />
+              )}
               <span>
-                <span className={cn(highlight === rows.length ? "text-accent-foreground/70" : "text-muted-foreground")}>
-                  Add:{" "}
-                </span>
-                {query.trim()}
+                {addInvalid ? (
+                  <span className="text-muted-foreground">Invalid format</span>
+                ) : (
+                  <>
+                    <span className={cn(highlight === rows.length ? "text-accent-foreground/70" : "text-muted-foreground")}>
+                      Add:{" "}
+                    </span>
+                    {query.trim()}
+                  </>
+                )}
               </span>
             </div>
           )}
