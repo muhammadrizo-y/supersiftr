@@ -249,6 +249,32 @@ mod tests {
     }
 
     #[test]
+    fn rename_dotfile_without_extension() {
+        let dir = temp_dir("rename_dot");
+        let src = dir.join(".env");
+        fs::write(&src, "x=1").unwrap();
+
+        let result = execute(&src, &RuleAction::Rename { name: "config".into() }, &[]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.join("config"));
+        assert!(dir.join("config").exists());
+        assert!(!src.exists());
+    }
+
+    #[test]
+    fn rename_dotfile_keeps_extension() {
+        let dir = temp_dir("rename_dot_ext");
+        let src = dir.join(".example.env");
+        fs::write(&src, "x=1").unwrap();
+
+        let result = execute(&src, &RuleAction::Rename { name: "config".into() }, &[]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.join("config.env"));
+        assert!(dir.join("config.env").exists());
+        assert!(!src.exists());
+    }
+
+    #[test]
     fn rename_prefix_keeps_compound_suffix() {
         let dir = temp_dir("rename_prefix");
         let src = dir.join("photo.tar.gz");

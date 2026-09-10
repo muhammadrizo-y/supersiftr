@@ -128,6 +128,33 @@ mod tests {
     }
 
     #[test]
+    fn dotfile_with_single_dot_has_no_extension() {
+        assert_eq!(split(".env", &[]), (".env", ""));
+        assert_eq!(split(".bashrc", &[]), (".bashrc", ""));
+    }
+
+    #[test]
+    fn dotfile_splits_at_last_dot() {
+        assert_eq!(split(".example.env", &[]), (".example", ".env"));
+        assert_eq!(split(".env.example", &[]), (".env", ".example"));
+        // A dotfile whose whole name equals a configured compound is not
+        // consumed by it; the final dot stays the boundary.
+        assert_eq!(split(".d.ts", &[]), (".d", ".ts"));
+        assert_eq!(split(".tar.gz", &[]), (".tar", ".gz"));
+    }
+
+    #[test]
+    fn dotfile_can_still_match_compound_with_real_name() {
+        assert_eq!(split(".photo.tar.gz", &[]), (".photo", ".tar.gz"));
+        assert_eq!(split(".photo.test.spec.ts", &[]), (".photo.test", ".spec.ts"));
+    }
+
+    #[test]
+    fn dotfiles_are_case_insensitive() {
+        assert_eq!(split(".EXAMPLE.ENV", &[]), (".EXAMPLE", ".ENV"));
+    }
+
+    #[test]
     fn normalize_accepts_compound_and_lowercases() {
         assert_eq!(normalize_custom_suffix("notes.backup", &[]), Some("notes.backup".into()));
         assert_eq!(normalize_custom_suffix("TAR.GZ", &[]), None); // built-in default
