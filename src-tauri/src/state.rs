@@ -121,7 +121,7 @@ impl AppState {
             (sieves.sieves.clone(), kinds.kinds.clone(), state.config.lock().unwrap().compound_extensions.clone())
         };
 
-        if !path.is_file() {
+        if !path.exists() {
             return;
         }
 

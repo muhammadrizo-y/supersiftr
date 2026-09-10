@@ -81,6 +81,7 @@ type SieveFormState = {
 };
 
 const PROPERTY_OPTIONS: { value: ConditionProperty; label: string }[] = [
+  { value: "type", label: "Type" },
   { value: "kind", label: "Kind" },
   { value: "extension", label: "Extension" },
   { value: "name", label: "Name" },
@@ -107,7 +108,13 @@ const OPERATOR_OPTIONS: Record<
     { value: "before", label: "before" },
     { value: "after", label: "after" },
   ],
+  type: [{ value: "is", label: "is" }],
 };
+
+const TYPE_OPTIONS: { value: "file" | "folder"; label: string }[] = [
+  { value: "file", label: "File" },
+  { value: "folder", label: "Folder" },
+];
 
 const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
   { value: "move", label: "Move" },
@@ -348,7 +355,7 @@ export function SieveForm({
     updateCondition(index, {
       property,
       operator: OPERATOR_OPTIONS[property][0].value,
-      values: [],
+      values: property === "type" ? ["file"] : [],
     });
   }
 
@@ -396,9 +403,12 @@ export function SieveForm({
       .map((c) => ({
         property: c.property,
         operator: c.operator,
-        values: c.values
-          .map((v) => (c.property === "extension" ? v.trim().toLowerCase() : v.trim()))
-          .filter(Boolean),
+        values:
+          c.property === "type"
+            ? [c.values[0] ?? "file"]
+            : c.values
+                .map((v) => (c.property === "extension" ? v.trim().toLowerCase() : v.trim()))
+                .filter(Boolean),
       }))
       .filter((c) => c.values.length > 0);
 
@@ -597,27 +607,29 @@ export function SieveForm({
                       ))}
                     </SelectPopup>
                   </Select>
-                  <Select
-                    value={c.operator}
-                    onValueChange={(value: string | null) =>
-                      updateCondition(i, {
-                        operator: value as ConditionOperator,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 w-32 shrink-0">
-                      <SelectValue>
-                        {OPERATOR_OPTIONS[c.property].find((o) => o.value === c.operator)?.label ?? c.operator}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectPopup>
-                      {OPERATOR_OPTIONS[c.property].map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                    </SelectPopup>
-                  </Select>
+                  {c.property !== "type" && (
+                    <Select
+                      value={c.operator}
+                      onValueChange={(value: string | null) =>
+                        updateCondition(i, {
+                          operator: value as ConditionOperator,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-32 shrink-0">
+                        <SelectValue>
+                          {OPERATOR_OPTIONS[c.property].find((o) => o.value === c.operator)?.label ?? c.operator}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectPopup>
+                        {OPERATOR_OPTIONS[c.property].map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectPopup>
+                    </Select>
+                  )}
                   <div className="min-w-0 flex-1">
                     {c.property === "kind" && (
                       <Combobox
@@ -648,6 +660,27 @@ export function SieveForm({
                         placeholder="Add name patterns…"
                         label="name patterns"
                       />
+                    )}
+                    {c.property === "type" && (
+                      <Select
+                        value={c.values[0] ?? "file"}
+                        onValueChange={(value: string | null) =>
+                          updateCondition(i, { values: value ? [value] : [] })
+                        }
+                      >
+                        <SelectTrigger className="h-8 w-32 shrink-0">
+                          <SelectValue>
+                            {TYPE_OPTIONS.find((o) => o.value === c.values[0])?.label ?? "File"}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectPopup>
+                          {TYPE_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                        </SelectPopup>
+                      </Select>
                     )}
                     {c.property === "modified" && (
                       <DatePicker

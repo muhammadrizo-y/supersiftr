@@ -24,6 +24,7 @@ pub enum SieveProperty {
     Extension,
     Name,
     Modified,
+    Type,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,7 +90,10 @@ impl SieveCondition {
                 let exts = self.target_extensions(kinds);
                 // No resolvable extensions: `is` matches nothing, `is_not`
                 // matches everything (covers missing kinds).
-                let hit = !exts.is_empty()
+                // Directories are always treated as extensionless: a folder
+                // literally named "report.pdf" is not a pdf.
+                let hit = !path.is_dir()
+                    && !exts.is_empty()
                     && path
                         .extension()
                         .and_then(|e| e.to_str())
@@ -131,6 +135,22 @@ impl SieveCondition {
                 match self.operator {
                     SieveOperator::After => modified >= date,
                     SieveOperator::Before => modified <= date,
+                    _ => false,
+                }
+            }
+            SieveProperty::Type => {
+                let Some(entry) = self.values.first() else {
+                    return false;
+                };
+                let is_dir = path.is_dir();
+                let hit = match entry.as_str() {
+                    "file" => !is_dir,
+                    "folder" => is_dir,
+                    _ => false,
+                };
+                match self.operator {
+                    SieveOperator::Is => hit,
+                    SieveOperator::IsNot => !hit,
                     _ => false,
                 }
             }
@@ -319,6 +339,67 @@ mod tests {
             operator,
             values,
         }
+    }
+
+    fn type_condition(value: &str) -> SieveCondition {
+        SieveCondition {
+            property: SieveProperty::Type,
+            operator: SieveOperator::Is,
+            values: vec![value.into()],
+        }
+    }
+
+    #[test]
+    fn matches_type_folder_only() {
+        let dir = std::env::temp_dir();
+        let file = std::env::current_exe().unwrap();
+        let s = sieve(vec![type_condition("folder")], Vec::new());
+        assert!(s.matches(dir.as_path(), &[]));
+        assert!(!s.matches(file.as_path(), &[]));
+    }
+
+    #[test]
+    fn matches_type_file_only() {
+        let dir = std::env::temp_dir();
+        let file = std::env::current_exe().unwrap();
+        let s = sieve(vec![type_condition("file")], Vec::new());
+        assert!(s.matches(file.as_path(), &[]));
+        assert!(!s.matches(dir.as_path(), &[]));
+    }
+
+    #[test]
+    fn extension_condition_ignores_dotted_folder() {
+        let dir = std::env::temp_dir().join(format!(
+            "supersiftr-dotted-folder-{}.pdf",
+            std::process::id()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        let s = sieve(
+            vec![SieveCondition {
+                property: SieveProperty::Extension,
+                operator: SieveOperator::Is,
+                values: vec!["pdf".into()],
+            }],
+            Vec::new(),
+        );
+        assert!(!s.matches(dir.as_path(), &[]));
+        let not_s = sieve(
+            vec![SieveCondition {
+                property: SieveProperty::Extension,
+                operator: SieveOperator::IsNot,
+                values: vec!["pdf".into()],
+            }],
+            Vec::new(),
+        );
+        assert!(not_s.matches(dir.as_path(), &[]));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn name_condition_matches_folder() {
+        let dir = std::env::temp_dir();
+        let s = sieve(vec![name_condition(SieveOperator::Matches, vec!["*".into()])], Vec::new());
+        assert!(s.matches(dir.as_path(), &[]));
     }
 
     #[test]

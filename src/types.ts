@@ -10,7 +10,7 @@ export type ActionType = RuleAction["type"];
 
 export type ConditionMode = "all" | "any";
 
-export type ConditionProperty = "kind" | "extension" | "name" | "modified";
+export type ConditionProperty = "kind" | "extension" | "name" | "modified" | "type";
 
 export type ConditionOperator =
   | "is"

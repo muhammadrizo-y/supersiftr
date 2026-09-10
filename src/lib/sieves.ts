@@ -53,6 +53,8 @@ function describeCondition(c: SieveCondition, kinds: Kind[]): string {
     const dates = c.values.map(readableDate).join(", ");
     return `Modified ${c.operator} ${dates}`;
   }
+    case "type":
+      return c.values[0] === "folder" ? "Type is a Folder" : "Type is a File";
   }
 }
 
