@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { en } from "chrono-node"
-import { format, parseISO } from "date-fns"
+import { addYears, format, parseISO } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 
 import { Calendar } from "@/components/ui/calendar"
@@ -108,6 +108,8 @@ function DatePicker({
                 selected={date}
                 captionLayout="dropdown"
                 defaultMonth={date}
+                endMonth={addYears(new Date(), 100)}
+                weekStartsOn={dateFormat === "uk" ? 1 : 0}
                 onSelect={(d) => {
                   setDate(d)
                   setText(d ? formatDisplay(d) : "")
