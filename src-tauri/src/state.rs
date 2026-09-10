@@ -155,6 +155,9 @@ impl AppState {
                                 ),
                             );
                             current = dest;
+                            if matches!(action, RuleAction::Delete { .. }) {
+                                break;
+                            }
                         }
                         Err(actions::ActionError::SourceNotFound(_)) => {
                             // A prior action in this chain already moved the file,
