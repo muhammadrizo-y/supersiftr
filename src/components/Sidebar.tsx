@@ -1,14 +1,39 @@
 import {
   Activity,
+  Ellipsis,
+  Pencil,
   Plus,
   Settings,
   Trash2,
   Workflow,
 } from "lucide-react";
-import { useRef } from "react";
-import type { ReactNode } from "react";
+import { useRef, useState } from "react";
+import type { ComponentType, ReactNode } from "react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Empty,
   EmptyDescription,
@@ -56,6 +81,35 @@ function SidebarTab({
   );
 }
 
+type MenuItemProps = {
+  onClick?: () => void;
+  variant?: "default" | "destructive";
+  children?: ReactNode;
+};
+
+function SieveMenuItems({
+  Item,
+  onEdit,
+  onConfirmDelete,
+}: {
+  Item: ComponentType<MenuItemProps>;
+  onEdit: () => void;
+  onConfirmDelete: () => void;
+}) {
+  return (
+    <>
+      <Item onClick={onEdit}>
+        <Pencil />
+        Edit
+      </Item>
+      <Item variant="destructive" onClick={onConfirmDelete}>
+        <Trash2 />
+        Delete
+      </Item>
+    </>
+  );
+}
+
 function Sidebar({
   sieves,
   view,
@@ -68,6 +122,7 @@ function Sidebar({
   onDelete: (index: number) => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
   const selectedIndex =
     view.kind === "sieve" || view.kind === "edit" ? view.index : -1;
@@ -170,49 +225,105 @@ function Sidebar({
             className="flex flex-col gap-0.5 outline-none"
           >
             {sieves.map((sieve, i) => (
-              <div
-                key={i}
-                id={`sieve-option-${i}`}
-                role="option"
-                aria-selected={i === selectedIndex}
-                data-sieve-index={i}
-                tabIndex={0}
-                onClick={() => onSelect({ kind: "sieve", index: i })}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    onSelect({ kind: "sieve", index: i });
-                  }
-                }}
-                className={cn(
-                  "group flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                  i === selectedIndex
-                    ? "bg-accent text-accent-foreground"
-                    : "text-foreground hover:bg-accent/60",
-                )}
-              >
-                <span className="truncate">{sieve.name}</span>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity active:translate-y-px hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDelete(i);
-                        }}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
+              <ContextMenu key={i}>
+                <ContextMenuTrigger
+                  id={`sieve-option-${i}`}
+                  role="option"
+                  aria-selected={i === selectedIndex}
+                  data-sieve-index={i}
+                  tabIndex={0}
+                  onClick={() => onSelect({ kind: "sieve", index: i })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      onSelect({ kind: "sieve", index: i });
                     }
+                  }}
+                  className={cn(
+                    "group flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    i === selectedIndex
+                      ? "bg-accent text-accent-foreground"
+                      : "text-foreground hover:bg-accent/60",
+                  )}
+                >
+                  <span className="truncate">{sieve.name}</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Ellipsis className="size-3.5" />
+                        </Button>
+                      }
+                    />
+                    <DropdownMenuContent align="end">
+                      <SieveMenuItems
+                        Item={DropdownMenuItem}
+                        onEdit={() => onSelect({ kind: "edit", index: i })}
+                        onConfirmDelete={() => setDeleteTarget(i)}
+                      />
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <SieveMenuItems
+                    Item={ContextMenuItem}
+                    onEdit={() => onSelect({ kind: "edit", index: i })}
+                    onConfirmDelete={() => setDeleteTarget(i)}
                   />
-                  <TooltipContent side="right">Delete sieve</TooltipContent>
-                </Tooltip>
-              </div>
+                </ContextMenuContent>
+              </ContextMenu>
             ))}
           </div>
         )}
       </ScrollArea>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+              <Trash2 />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Delete sieve?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget !== null && sieves[deleteTarget] ? (
+                <>
+                  This will delete{" "}
+                  <span className="font-medium text-foreground">
+                    "{sieves[deleteTarget].name}"
+                  </span>{" "}
+                  and stop watching its folders. This action cannot be undone.
+                </>
+              ) : (
+                "This will delete the sieve and stop watching its folders. This action cannot be undone."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel variant="ghost">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (deleteTarget !== null) {
+                  onDelete(deleteTarget);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="flex shrink-0 flex-col gap-0.5 border-t border-border p-2">
         <SidebarTab
