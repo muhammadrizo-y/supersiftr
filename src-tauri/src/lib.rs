@@ -218,6 +218,23 @@ fn add_sieve(sieve: Sieve, app: tauri::AppHandle) -> Result<Vec<Sieve>, String> 
 }
 
 #[tauri::command]
+fn insert_sieve(
+    index: usize,
+    sieve: Sieve,
+    app: tauri::AppHandle,
+) -> Result<Vec<Sieve>, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut store = state.sieves.lock().unwrap();
+        let index = index.min(store.sieves.len());
+        store.sieves.insert(index, sieve);
+        sieves::save(&store).map_err(|e| e.to_string())?;
+    }
+    AppState::restart_watchers(&app).map_err(|e| e.to_string())?;
+    Ok(get_sieves(app.state::<AppState>()))
+}
+
+#[tauri::command]
 fn remove_sieve(index: usize, app: tauri::AppHandle) -> Result<Vec<Sieve>, String> {
     {
         let state = app.state::<AppState>();
@@ -456,6 +473,7 @@ pub fn run() {
             set_compound_extensions,
             get_sieves,
             add_sieve,
+            insert_sieve,
             remove_sieve,
             update_sieve,
             set_sieve_enabled,

@@ -133,10 +133,22 @@ function App() {
   }, [cancelForm]);
 
   async function removeSieve(index: number) {
+    const removed = sieves[index];
     const updated = await invoke<Sieve[]>("remove_sieve", { index });
     setSieves(updated);
     setView(updated.length ? { kind: "sieve", index: 0 } : { kind: "new" });
-    toast.success("Sieve deleted");
+    toast.success("Sieve deleted", {
+      action: {
+        label: "Undo",
+        onClick: () => void restoreSieve(removed, index),
+      },
+    });
+  }
+
+  async function restoreSieve(sieve: Sieve, index: number) {
+    const updated = await invoke<Sieve[]>("insert_sieve", { index, sieve });
+    setSieves(updated);
+    setView({ kind: "sieve", index: Math.min(index, updated.length - 1) });
   }
 
   async function addSieve(sieve: Sieve) {
@@ -167,10 +179,23 @@ function App() {
   }
 
   async function deleteKind(name: string) {
+    const removed = kinds.find((k) => k.name === name);
     const updated = await invoke<Kind[]>("delete_kind", { name });
     setKinds(updated);
     log(`Deleted kind: ${name}`);
-    toast.success(`Kind "${name}" deleted`);
+    toast.success(`Kind "${name}" deleted`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          if (removed) void restoreKind(removed);
+        },
+      },
+    });
+  }
+
+  async function restoreKind(kind: Kind) {
+    const updated = await invoke<Kind[]>("add_kind", { kind });
+    setKinds(updated);
   }
 
   async function toggleKindEnabled(name: string, enabled: boolean) {
