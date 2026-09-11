@@ -260,7 +260,10 @@ function Sidebar({
                         </Button>
                       }
                     />
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent
+                      align="end"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <SieveMenuItems
                         Item={DropdownMenuItem}
                         onEdit={() => onSelect({ kind: "edit", index: i })}
