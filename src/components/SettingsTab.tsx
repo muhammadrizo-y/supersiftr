@@ -4,6 +4,17 @@ import { EllipsisVertical, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Combobox } from "@/components/ui/combobox";
 import {
   DropdownMenu,
@@ -48,6 +59,7 @@ export function SettingsTab({
   onDateFormatChange: (format: "us" | "uk") => void;
 }) {
   const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [runAtStartup, setRunAtStartup] = useState<boolean | null>(null);
   const [trayEnabled, setTrayEnabled] = useState<boolean | null>(null);
   const [compoundDefaults, setCompoundDefaults] = useState<string[]>([]);
@@ -276,7 +288,7 @@ export function SettingsTab({
                                   size="sm"
                                   variant="outline"
                                   className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                  onClick={() => onDelete(k.name)}
+                                  onClick={() => setDeleteTarget(k.name)}
                                 >
                                   <Trash2 className="size-3.5" />
                                 </Button>
@@ -320,6 +332,48 @@ export function SettingsTab({
           label="compound extensions"
         />
       </div>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+              <Trash2 />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Delete kind?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget !== null && kinds.find((k) => k.name === deleteTarget) ? (
+                <>
+                  This will delete{" "}
+                  <span className="font-medium text-foreground">
+                    "{kinds.find((k) => k.name === deleteTarget)!.title}"
+                  </span>{" "}
+                  and every sieve that references it will stop matching its
+                  files. This action cannot be undone.
+                </>
+              ) : (
+                "This will delete the kind. This action cannot be undone."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel variant="ghost">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (deleteTarget !== null) onDelete(deleteTarget);
+                setDeleteTarget(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
