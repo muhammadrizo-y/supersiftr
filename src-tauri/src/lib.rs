@@ -309,9 +309,10 @@ fn add_kind(kind: Kind, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
     {
         let state = app.state::<AppState>();
         let mut store = state.kinds.lock().unwrap();
-        if store.kinds.iter().any(|p| p.name == kind.name) {
-            return Err(kinds::KindError::Duplicate.to_string());
-        }
+        let base = kinds::slugify(&kind.name)
+            .or_else(|| kinds::slugify(&kind.title))
+            .ok_or_else(|| "Kind name can't be empty".to_string())?;
+        kind.name = kinds::unique_name(&base, &store.kinds);
         store.kinds.push(kind);
         kinds::save(&store).map_err(|e| e.to_string())?;
     }
@@ -328,7 +329,12 @@ fn update_kind(kind: Kind, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
             .iter_mut()
             .find(|p| p.name == kind.name)
         {
-            Some(existing) => *existing = kind,
+            Some(existing) => {
+                existing.title = kind.title;
+                existing.extensions = kind.extensions;
+                existing.enabled = kind.enabled;
+                existing.is_default = kind.is_default;
+            }
             None => return Err(kinds::KindError::NotFound.to_string()),
         }
         kinds::save(&store).map_err(|e| e.to_string())?;

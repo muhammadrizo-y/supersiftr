@@ -7,6 +7,21 @@ function readableDate(value: string): string {
   return format(date, "MMMM d, yyyy");
 }
 
+export function slugify(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function uniqueName(base: string, existing: string[]): string {
+  if (!existing.includes(base)) return base;
+  let n = 2;
+  while (existing.includes(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
 export function kindByTitle(kinds: Kind[], key: string): string {
   const k = kinds.find((x) => x.name === key);
   return k ? k.title : key;

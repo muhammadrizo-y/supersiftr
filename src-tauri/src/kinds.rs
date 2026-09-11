@@ -147,6 +147,45 @@ impl Default for DefaultKindStore {
     }
 }
 
+/// Normalize a title into a kebab-case id: lowercase, spaces/underscores to
+/// hyphens, non-alphanumeric (except hyphen) dropped, leading/trailing hyphens
+/// trimmed. Returns `None` when nothing remains (e.g. all-symbol input).
+pub fn slugify(input: &str) -> Option<String> {
+    let mut out = String::with_capacity(input.len());
+    let mut last_was_sep = false;
+    for c in input.trim().chars() {
+        if c.is_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+            last_was_sep = false;
+        } else if !last_was_sep {
+            out.push('-');
+            last_was_sep = true;
+        }
+    }
+    let trimmed = out.trim_matches('-');
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+/// Return a unique id derived from `base`, appending `-2`, `-3`, … when the
+/// base (or a previous suffix) is already taken by an existing kind.
+pub fn unique_name(base: &str, existing: &[Kind]) -> String {
+    if !existing.iter().any(|k| k.name == base) {
+        return base.to_string();
+    }
+    let mut n = 2;
+    loop {
+        let candidate = format!("{base}-{n}");
+        if !existing.iter().any(|k| k.name == candidate) {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
 pub fn kinds_path() -> Result<PathBuf, KindError> {
     Ok(config_dir()?.join("kinds.json"))
 }
@@ -194,6 +233,37 @@ pub fn save(store: &KindStore) -> Result<(), KindError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slugify_normalizes_titles() {
+        assert_eq!(slugify("Movie").as_deref(), Some("movie"));
+        assert_eq!(slugify("My Movie").as_deref(), Some("my-movie"));
+        assert_eq!(slugify("  Screenshots  ").as_deref(), Some("screenshots"));
+        assert_eq!(slugify("C++ Files").as_deref(), Some("c-files"));
+        assert_eq!(slugify("!!!").as_deref(), None);
+    }
+
+    #[test]
+    fn unique_name_appends_suffix_on_collision() {
+        let kinds = vec![
+            Kind {
+                name: "movie".into(),
+                title: "Movie".into(),
+                extensions: vec![],
+                enabled: true,
+                is_default: true,
+            },
+            Kind {
+                name: "movie-2".into(),
+                title: "Movie 2".into(),
+                extensions: vec![],
+                enabled: true,
+                is_default: false,
+            },
+        ];
+        assert_eq!(unique_name("movie", &kinds), "movie-3");
+        assert_eq!(unique_name("image", &kinds), "image");
+    }
 
     #[test]
     fn defaults_are_unique() {
