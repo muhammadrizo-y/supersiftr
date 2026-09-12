@@ -127,14 +127,14 @@ const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
   { value: "copy", label: "Copy" },
   { value: "rename", label: "Rename" },
   { value: "delete", label: "Delete" },
-  { value: "sort_into", label: "Sort Into Subfolder" },
+  { value: "sort_into", label: "Sort into Subfolder" },
   { value: "compress", label: "Compress" },
   { value: "extract", label: "Extract" },
 ];
 
 const SORT_KEY_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: "extension", label: "Extension" },
   { value: "kind", label: "Kind" },
+  { value: "extension", label: "Extension" },
 ];
 
 const DELETE_OPTIONS: { value: DeleteMode; label: string }[] = [
@@ -292,7 +292,7 @@ function ActionItemRow({
         value={action.type}
         onValueChange={(value: string | null) => onTypeChange(index, value as ActionType)}
       >
-        <SelectTrigger className="h-8 w-36 shrink-0">
+        <SelectTrigger className="h-8 w-40 shrink-0">
           <SelectValue>
             {ACTION_OPTIONS.find((o) => o.value === action.type)?.label ?? action.type}
           </SelectValue>
@@ -330,7 +330,7 @@ function ActionItemRow({
           <Input
             value={action.folder}
             onChange={(e) => onPatch(index, { folder: e.currentTarget.value })}
-            placeholder="D:\\Sorted"
+            placeholder="C:\Users\User\Documents"
             className="min-w-0 flex-1"
           />
           <Button
@@ -453,7 +453,7 @@ function ActionItemRow({
               <Input
                 value={action.folder}
                 onChange={(e) => onPatch(index, { folder: e.currentTarget.value })}
-                placeholder="D:\Temp"
+                placeholder="C:\Users\User\Documents"
                 className="flex-1"
               />
               <Button
