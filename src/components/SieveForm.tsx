@@ -48,10 +48,12 @@ import { allKnownExtensions } from "@/lib/sieves";
 import { cn } from "@/lib/utils";
 import type {
   ActionType,
+  ArchiveFormat,
   ConditionMode,
   ConditionOperator,
   ConditionProperty,
   DeleteMode,
+  ExtractSourceMode,
   Kind,
   RuleAction,
   Sieve,
@@ -72,6 +74,8 @@ type ActionRowState = {
   name: string;
   mode: DeleteMode;
   by: SortKey;
+  format: ArchiveFormat;
+  source: ExtractSourceMode;
 };
 
 type SieveFormState = {
@@ -123,7 +127,9 @@ const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
   { value: "copy", label: "Copy" },
   { value: "rename", label: "Rename" },
   { value: "delete", label: "Delete" },
-  { value: "sort_into", label: "Sort into subfolder" },
+  { value: "sort_into", label: "Sort Into Subfolder" },
+  { value: "compress", label: "Compress" },
+  { value: "extract", label: "Extract" },
 ];
 
 const SORT_KEY_OPTIONS: { value: SortKey; label: string }[] = [
@@ -134,6 +140,20 @@ const SORT_KEY_OPTIONS: { value: SortKey; label: string }[] = [
 const DELETE_OPTIONS: { value: DeleteMode; label: string }[] = [
   { value: "recycle", label: "Move to Recycle Bin" },
   { value: "permanent", label: "Delete Permanently" },
+];
+
+const ARCHIVE_FORMAT_OPTIONS: { value: ArchiveFormat; label: string }[] = [
+  { value: "zip", label: "zip" },
+  { value: "tar_gz", label: "tar.gz" },
+  { value: "tar_bz2", label: "tar.bz2" },
+  { value: "tar_xz", label: "tar.xz" },
+  { value: "tar", label: "tar" },
+];
+
+const EXTRACT_SOURCE_OPTIONS: { value: ExtractSourceMode; label: string }[] = [
+  { value: "keep", label: "Keep Source" },
+  { value: "recycle", label: "Move Source to Recycle Bin" },
+  { value: "delete", label: "Delete Source Permanently" },
 ];
 
 const emptyForm: SieveFormState = {
@@ -162,6 +182,8 @@ function actionRowFromAction(action: RuleAction): ActionRowState {
         name: "",
         mode: "recycle",
         by: "extension",
+        format: "zip",
+        source: "keep",
       };
     case "rename":
       return {
@@ -171,6 +193,8 @@ function actionRowFromAction(action: RuleAction): ActionRowState {
         name: action.name,
         mode: "recycle",
         by: "extension",
+        format: "zip",
+        source: "keep",
       };
     case "delete":
       return {
@@ -180,6 +204,8 @@ function actionRowFromAction(action: RuleAction): ActionRowState {
         name: "",
         mode: action.mode,
         by: "extension",
+        format: "zip",
+        source: "keep",
       };
     case "sort_into":
       return {
@@ -189,6 +215,30 @@ function actionRowFromAction(action: RuleAction): ActionRowState {
         name: "",
         mode: "recycle",
         by: action.by,
+        format: "zip",
+        source: "keep",
+      };
+    case "compress":
+      return {
+        id: ++nextActionRowId,
+        type: "compress",
+        folder: "",
+        name: "",
+        mode: "recycle",
+        by: "extension",
+        format: action.format,
+        source: action.source,
+      };
+    case "extract":
+      return {
+        id: ++nextActionRowId,
+        type: "extract",
+        folder: "",
+        name: "",
+        mode: "recycle",
+        by: "extension",
+        format: "zip",
+        source: action.source,
       };
   }
 }
@@ -242,7 +292,7 @@ function ActionItemRow({
         value={action.type}
         onValueChange={(value: string | null) => onTypeChange(index, value as ActionType)}
       >
-        <SelectTrigger className="h-8 w-28 shrink-0">
+        <SelectTrigger className="h-8 w-36 shrink-0">
           <SelectValue>
             {ACTION_OPTIONS.find((o) => o.value === action.type)?.label ?? action.type}
           </SelectValue>
@@ -308,6 +358,75 @@ function ActionItemRow({
             </SelectTrigger>
             <SelectPopup>
               {SORT_KEY_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        </>
+      ) : action.type === "compress" ? (
+        <>
+          <span className="shrink-0 text-xs text-muted-foreground">to</span>
+          <Select
+            value={action.format}
+            onValueChange={(value: string | null) =>
+              onPatch(index, { format: value as ArchiveFormat })
+            }
+          >
+            <SelectTrigger className="h-8 w-28 shrink-0 gap-1">
+              <SelectValue>
+                {ARCHIVE_FORMAT_OPTIONS.find((o) => o.value === action.format)?.label ??
+                  action.format}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup>
+              {ARCHIVE_FORMAT_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+          <span className="shrink-0 text-xs text-muted-foreground">then</span>
+          <Select
+            value={action.source}
+            onValueChange={(value: string | null) =>
+              onPatch(index, { source: value as ExtractSourceMode })
+            }
+          >
+            <SelectTrigger className="h-8 w-56 shrink-0 gap-1">
+              <SelectValue>
+                {EXTRACT_SOURCE_OPTIONS.find((o) => o.value === action.source)?.label ??
+                  action.source}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup>
+              {EXTRACT_SOURCE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        </>
+      ) : action.type === "extract" ? (
+        <>
+          <span className="shrink-0 text-xs text-muted-foreground">then</span>
+          <Select
+            value={action.source}
+            onValueChange={(value: string | null) =>
+              onPatch(index, { source: value as ExtractSourceMode })
+            }
+          >
+            <SelectTrigger className="h-8 w-56 shrink-0 gap-1">
+              <SelectValue>
+                {EXTRACT_SOURCE_OPTIONS.find((o) => o.value === action.source)?.label ??
+                  action.source}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup>
+              {EXTRACT_SOURCE_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
                 </SelectItem>
@@ -433,7 +552,15 @@ export function SieveForm({
     }));
 
   function setActionType(index: number, type: ActionType) {
-    updateAction(index, { type, folder: "", name: "", mode: "recycle", by: "extension" });
+    updateAction(index, {
+      type,
+      folder: "",
+      name: "",
+      mode: "recycle",
+      by: "extension",
+      format: "zip",
+      source: "recycle",
+    });
   }
 
   function removeAction(index: number) {
@@ -483,10 +610,16 @@ export function SieveForm({
         if (a.type === "sort_into") {
           return { type: "sort_into" as const, folder: a.folder.trim(), by: a.by };
         }
+        if (a.type === "compress") {
+          return { type: "compress" as const, format: a.format, source: a.source };
+        }
+        if (a.type === "extract") {
+          return { type: "extract" as const, source: a.source };
+        }
         return { type: a.type, folder: a.folder.trim() };
       })
       .filter((a) => {
-        if (a.type === "delete") return true;
+        if (a.type === "delete" || a.type === "compress" || a.type === "extract") return true;
         return a.type === "rename" ? a.name !== "" : a.folder !== "";
       });
 
@@ -809,6 +942,8 @@ export function SieveForm({
                         name: "",
                         mode: "recycle",
                         by: "extension",
+                        format: "zip",
+                        source: "recycle",
                       },
                     ])
                   }

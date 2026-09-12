@@ -201,6 +201,8 @@ fn action_verb(action: &RuleAction) -> &'static str {
         RuleAction::Delete { mode: DeleteMode::Recycle } => "Sent to recycle bin",
         RuleAction::Delete { mode: DeleteMode::Permanent } => "Deleted",
         RuleAction::SortInto { .. } => "Sorted",
+        RuleAction::Compress { .. } => "Compressed",
+        RuleAction::Extract { .. } => "Extracted",
     }
 }
 

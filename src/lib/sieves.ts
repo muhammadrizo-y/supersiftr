@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns";
-import type { Kind, RuleAction, Sieve, SieveCondition } from "@/types";
+import type { ExtractSourceMode, Kind, RuleAction, Sieve, SieveCondition } from "@/types";
 
 function readableDate(value: string): string {
   const date = parseISO(value);
@@ -103,6 +103,23 @@ function describeAction(action: RuleAction): string {
       return action.mode === "recycle" ? "Move to Recycle Bin" : "Delete Permanently";
     case "sort_into":
       return `Sort into ${action.folder} by ${action.by}`;
+    case "compress": {
+      const fmt = action.format.replace("_", ".");
+      return `Compress to ${fmt} and ${sourcePhrase(action.source)}`;
+    }
+    case "extract":
+      return `Extract and ${sourcePhrase(action.source)}`;
+  }
+}
+
+function sourcePhrase(mode: ExtractSourceMode): string {
+  switch (mode) {
+    case "keep":
+      return "Keep Source";
+    case "recycle":
+      return "Move Source to Recycle Bin";
+    case "delete":
+      return "Delete Source";
   }
 }
 

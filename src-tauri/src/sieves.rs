@@ -194,6 +194,40 @@ pub enum SortKey {
     Kind,
 }
 
+/// Archive format for compress/extract actions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArchiveFormat {
+    Zip,
+    TarGz,
+    TarBz2,
+    TarXz,
+    Tar,
+}
+
+/// What happens to the source archive after a successful extract.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExtractSourceMode {
+    Keep,
+    #[default]
+    Recycle,
+    Delete,
+}
+
+impl std::fmt::Display for ArchiveFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            ArchiveFormat::Zip => "zip",
+            ArchiveFormat::TarGz => "tar.gz",
+            ArchiveFormat::TarBz2 => "tar.bz2",
+            ArchiveFormat::TarXz => "tar.xz",
+            ArchiveFormat::Tar => "tar",
+        };
+        f.write_str(s)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleAction {
@@ -202,6 +236,12 @@ pub enum RuleAction {
     Rename { name: String },
     Delete { mode: DeleteMode },
     SortInto { folder: String, by: SortKey },
+    Compress {
+        format: ArchiveFormat,
+        #[serde(default)]
+        source: ExtractSourceMode,
+    },
+    Extract { source: ExtractSourceMode },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

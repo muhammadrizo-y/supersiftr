@@ -2,12 +2,18 @@ export type DeleteMode = "recycle" | "permanent";
 
 export type SortKey = "extension" | "kind";
 
+export type ArchiveFormat = "zip" | "tar_gz" | "tar_bz2" | "tar_xz" | "tar";
+
+export type ExtractSourceMode = "keep" | "recycle" | "delete";
+
 export type RuleAction =
   | { type: "move"; folder: string }
   | { type: "copy"; folder: string }
   | { type: "rename"; name: string }
   | { type: "delete"; mode: DeleteMode }
-  | { type: "sort_into"; folder: string; by: SortKey };
+  | { type: "sort_into"; folder: string; by: SortKey }
+  | { type: "compress"; format: ArchiveFormat; source: ExtractSourceMode }
+  | { type: "extract"; source: ExtractSourceMode };
 
 export type ActionType = RuleAction["type"];
 

@@ -5,8 +5,9 @@ use std::time::Duration;
 
 use thiserror::Error;
 
+use crate::archive;
 use crate::kinds::Kind;
-use crate::sieves::{DeleteMode, RuleAction, SortKey};
+use crate::sieves::{DeleteMode, ExtractSourceMode, RuleAction, SortKey};
 use crate::suffix;
 
 const MAX_RETRIES: u32 = 5;
@@ -39,6 +40,8 @@ pub enum ActionError {
     SourceNotFound(String),
     #[error("Recycle bin error: {0}")]
     RecycleBin(String),
+    #[error("Archive error: {0}")]
+    Archive(#[from] crate::archive::ArchiveError),
 }
 
 impl serde::Serialize for ActionError {
@@ -113,6 +116,49 @@ pub fn execute(
             let dest = dest_dir.join(&file_name);
             move_file(source, &dest)?;
             Ok(dest)
+        }
+        RuleAction::Compress {
+            format,
+            source: source_mode,
+        } => {
+            let file_name = source
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let (base, _) = suffix::split(&file_name, custom_suffixes);
+            let dest = source.with_file_name(format!("{base}.{format}"));
+            archive::compress(source, &dest)?;
+            match source_mode {
+                ExtractSourceMode::Keep => {}
+                ExtractSourceMode::Recycle => {
+                    archive::delete_source(source, DeleteMode::Recycle)?
+                }
+                ExtractSourceMode::Delete => {
+                    archive::delete_source(source, DeleteMode::Permanent)?
+                }
+            }
+            Ok(dest)
+        }
+        RuleAction::Extract { source: source_mode } => {
+            let stem = source
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            // Always extract into a folder named after the archive so the
+            // contents can't spray into the watched folder and re-trigger
+            // sieves per file.
+            let dest_dir = source.with_file_name(&stem);
+            archive::extract(source, &dest_dir)?;
+            match source_mode {
+                ExtractSourceMode::Keep => {}
+                ExtractSourceMode::Recycle => {
+                    archive::delete_source(source, DeleteMode::Recycle)?
+                }
+                ExtractSourceMode::Delete => {
+                    archive::delete_source(source, DeleteMode::Permanent)?
+                }
+            }
+            Ok(dest_dir)
         }
         RuleAction::Delete { mode } => {
             match mode {
@@ -195,6 +241,8 @@ fn is_retryable(err: &std::io::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sieves::ArchiveFormat;
+    use std::io::Write;
     use std::fs::{self, File};
 
     fn temp_dir(name: &str) -> PathBuf {
@@ -554,6 +602,101 @@ mod tests {
         assert_eq!(result.unwrap(), dest);
         assert!(dest.exists());
         assert!(!src.exists());
+    }
+
+    #[test]
+    fn compress_creates_zip_next_to_source() {
+        let dir = temp_dir("compress_zip");
+        let src = dir.join("report.pdf");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(
+            &src,
+            &RuleAction::Compress {
+                format: ArchiveFormat::Zip,
+                source: ExtractSourceMode::Keep,
+            },
+            &[],
+            &[],
+        );
+        assert!(result.is_ok());
+        let dest = dir.join("report.zip");
+        assert_eq!(result.unwrap(), dest);
+        assert!(dest.exists());
+        assert!(src.exists());
+    }
+
+    #[test]
+    fn compress_tar_gz_strips_compound_suffix() {
+        let dir = temp_dir("compress_tgz");
+        let src = dir.join("backup.tar");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(
+            &src,
+            &RuleAction::Compress {
+                format: ArchiveFormat::TarGz,
+                source: ExtractSourceMode::Keep,
+            },
+            &[],
+            &[],
+        );
+        assert!(result.is_ok());
+        let dest = dir.join("backup.tar.gz");
+        assert_eq!(result.unwrap(), dest);
+        assert!(dest.exists());
+    }
+
+    #[test]
+    fn extract_creates_folder_and_keeps_source() {
+        let dir = temp_dir("extract_keep");
+        let src = dir.join("bundle.zip");
+        {
+            let file = File::create(&src).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            zip.start_file("inner/a.txt", zip::write::SimpleFileOptions::default()).unwrap();
+            Write::write_all(&mut zip, b"data").unwrap();
+            zip.finish().unwrap();
+        }
+
+        let result = execute(
+            &src,
+            &RuleAction::Extract {
+                source: ExtractSourceMode::Keep,
+            },
+            &[],
+            &[],
+        );
+        assert!(result.is_ok());
+        let dest_dir = dir.join("bundle");
+        assert_eq!(result.unwrap(), dest_dir);
+        assert!(dest_dir.join("inner").join("a.txt").exists());
+        assert!(src.exists());
+    }
+
+    #[test]
+    fn extract_can_recycle_source() {
+        let dir = temp_dir("extract_recycle");
+        let src = dir.join("bundle.zip");
+        {
+            let file = File::create(&src).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            zip.start_file("a.txt", zip::write::SimpleFileOptions::default()).unwrap();
+            Write::write_all(&mut zip, b"data").unwrap();
+            zip.finish().unwrap();
+        }
+
+        let result = execute(
+            &src,
+            &RuleAction::Extract {
+                source: ExtractSourceMode::Recycle,
+            },
+            &[],
+            &[],
+        );
+        assert!(result.is_ok());
+        assert!(!src.exists());
+        assert!(dir.join("bundle").join("a.txt").exists());
     }
 
     #[test]

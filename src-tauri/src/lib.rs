@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod archive;
 pub mod config;
 pub mod kinds;
 pub mod license;
