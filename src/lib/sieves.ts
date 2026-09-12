@@ -33,6 +33,18 @@ export function allKnownExtensions(kinds: Kind[]): string[] {
   return Array.from(set).sort();
 }
 
+const EXTENSION_PATTERN = /^[a-z0-9]+(?:\.[a-z0-9]+)*$/;
+
+export function isValidExtension(raw: string): boolean {
+  const s = raw.trim().toLowerCase();
+  return s !== "" && EXTENSION_PATTERN.test(s);
+}
+
+export function isValidCompoundSuffix(raw: string): boolean {
+  const s = raw.trim().toLowerCase();
+  return EXTENSION_PATTERN.test(s) && s.includes(".");
+}
+
 /// Mirrors `Sieve::missing_kinds` in src-tauri/src/sieves.rs — keep in sync
 /// if the matching rule ever changes. (Computed client-side on purpose: it
 /// re-evaluates instantly when kinds change, without re-fetching sieves.)

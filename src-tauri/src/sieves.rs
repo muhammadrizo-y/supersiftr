@@ -46,6 +46,18 @@ pub struct SieveCondition {
     pub values: Vec<String>,
 }
 
+/// Whether any configured extension is a suffix of `file_name`, case-
+/// insensitively, with at least one character before it. Multi-dot entries
+/// (`tar.gz`) match as a unit (longest tail wins by nature of `ends_with`);
+/// the guard makes `.env`-style dotfiles never match their own name.
+fn extension_set_matches(file_name: &str, exts: &HashSet<String>) -> bool {
+    let lower = file_name.to_ascii_lowercase();
+    exts.iter().any(|ext| {
+        let needle = format!(".{ext}");
+        lower.len() > needle.len() && lower.ends_with(&needle)
+    })
+}
+
 impl SieveCondition {
     /// Resolves the extension set this condition matches against, depending on
     /// property: kind ids expand to their kind extensions; extension
@@ -94,11 +106,7 @@ impl SieveCondition {
                 // literally named "report.pdf" is not a pdf.
                 let hit = !path.is_dir()
                     && !exts.is_empty()
-                    && path
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .map(|e| exts.contains(&e.to_lowercase()))
-                        .unwrap_or(false);
+                    && extension_set_matches(file_name, &exts);
                 match self.operator {
                     SieveOperator::Is => hit,
                     SieveOperator::IsNot => !hit,
@@ -428,6 +436,49 @@ mod tests {
         );
         assert!(s.matches(Path::new("doc.txt"), &[]));
         assert!(!s.matches(Path::new("doc.pdf"), &[]));
+    }
+
+    #[test]
+    fn kind_matches_compound_extension() {
+        let s = sieve(
+            vec![kind_condition(SieveOperator::Is, vec!["archive".into()])],
+            Vec::new(),
+        );
+        // `tar.gz` is a compound extension: it must match as a unit even
+        // though the file's final dot segment is only `gz`.
+        let compound = kind("archive", &["tar.gz"]);
+        assert!(s.matches(Path::new("photos.tar.gz"), &[compound.clone()]));
+        assert!(!s.matches(Path::new("photos.gz"), &[compound.clone()]));
+        // A `tar`-only kind (no compound entry) never swallows `.tar.gz`.
+        let plain = kind("archive", &["zip", "tar"]);
+        assert!(!s.matches(Path::new("photos.tar.gz"), &[plain]));
+    }
+
+    #[test]
+    fn extension_condition_matches_compound() {
+        let s = sieve(
+            vec![SieveCondition {
+                property: SieveProperty::Extension,
+                operator: SieveOperator::Is,
+                values: vec!["tar.gz".into()],
+            }],
+            Vec::new(),
+        );
+        assert!(s.matches(Path::new("docs.tar.gz"), &[]));
+        assert!(!s.matches(Path::new("docs.gz"), &[]));
+    }
+
+    #[test]
+    fn compound_dotfile_is_not_matched() {
+        let s = sieve(
+            vec![SieveCondition {
+                property: SieveProperty::Extension,
+                operator: SieveOperator::Is,
+                values: vec!["tar.gz".into()],
+            }],
+            Vec::new(),
+        );
+        assert!(!s.matches(Path::new(".tar.gz"), &[]));
     }
 
     #[test]

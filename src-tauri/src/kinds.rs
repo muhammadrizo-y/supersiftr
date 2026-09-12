@@ -103,7 +103,7 @@ fn default_kinds() -> Vec<Kind> {
         Kind {
             name: "archive".into(),
             title: "Archive".into(),
-            extensions: vec!["zip", "rar", "7z", "tar", "gz", "bz2", "xz"]
+            extensions: vec!["zip", "rar", "7z", "tar", "tar.gz", "gz", "bz2", "xz"]
                 .into_iter()
                 .map(String::from)
                 .collect(),

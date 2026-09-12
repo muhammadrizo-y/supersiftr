@@ -36,6 +36,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { isValidCompoundSuffix } from "@/lib/sieves";
 import type { AppConfig, CompoundExtensionsView, ConfigView, Kind } from "@/types";
 import { KindForm } from "./KindForm";
 
@@ -105,10 +106,9 @@ export function SettingsTab({
     }
   }
 
-  const compoundPattern = /^[a-zA-Z0-9]+(?:\.[a-zA-Z0-9]+)+$/;
   const validateCompound = (raw: string) => {
     const s = raw.trim().toLowerCase();
-    return compoundPattern.test(s) && !compoundDefaults.includes(s);
+    return isValidCompoundSuffix(s) && !compoundDefaults.includes(s);
   };
 
   async function saveCustomCompounds(custom: string[]) {

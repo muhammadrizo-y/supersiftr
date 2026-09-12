@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Combobox, type SelectOption } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { allKnownExtensions, slugify, uniqueName } from "@/lib/sieves";
+import { allKnownExtensions, isValidExtension, slugify, uniqueName } from "@/lib/sieves";
 import type { Kind } from "@/types";
 
 export function KindForm({
@@ -85,6 +85,7 @@ export function KindForm({
           placeholder="Type or select extensions…"
           onBlur={() => setExtTouched(true)}
           label="kind extensions"
+          validateCustom={isValidExtension}
         />
         {extTouched && extensions.length === 0 && (
           <p className="text-xs text-destructive">Add at least one extension.</p>
