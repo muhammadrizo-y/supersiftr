@@ -16,6 +16,7 @@ import {
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import { open } from "@tauri-apps/plugin-dialog";
+import { toast } from "sonner";
 import {
   Folder,
   FolderSearch,
@@ -292,7 +293,7 @@ function ActionItemRow({
         value={action.type}
         onValueChange={(value: string | null) => onTypeChange(index, value as ActionType)}
       >
-        <SelectTrigger className="h-8 w-40 shrink-0">
+        <SelectTrigger className="h-8 w-42 shrink-0">
           <SelectValue>
             {ACTION_OPTIONS.find((o) => o.value === action.type)?.label ?? action.type}
           </SelectValue>
@@ -586,18 +587,6 @@ export function SieveForm({
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const conditions: SieveCondition[] = form.conditions
-      .map((c) => ({
-        property: c.property,
-        operator: c.operator,
-        values:
-          c.property === "type"
-            ? [c.values[0] ?? "file"]
-            : c.values
-                .map((v) => (c.property === "extension" ? v.trim().toLowerCase() : v.trim()))
-                .filter(Boolean),
-      }))
-      .filter((c) => c.values.length > 0);
 
     const actions: RuleAction[] = form.actions
       .map((a) => {
@@ -622,6 +611,28 @@ export function SieveForm({
         if (a.type === "delete" || a.type === "compress" || a.type === "extract") return true;
         return a.type === "rename" ? a.name !== "" : a.folder !== "";
       });
+
+    if (form.watched_folders.length === 0) {
+      toast.error("Add at least one watched folder to create a sieve.");
+      return;
+    }
+    if (actions.length === 0) {
+      toast.error("Add at least one action to create a sieve.");
+      return;
+    }
+
+    const conditions: SieveCondition[] = form.conditions
+      .map((c) => ({
+        property: c.property,
+        operator: c.operator,
+        values:
+          c.property === "type"
+            ? [c.values[0] ?? "file"]
+            : c.values
+                .map((v) => (c.property === "extension" ? v.trim().toLowerCase() : v.trim()))
+                .filter(Boolean),
+      }))
+      .filter((c) => c.values.length > 0);
 
     onSubmit({
       name: form.name.trim(),
