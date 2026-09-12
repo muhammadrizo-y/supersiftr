@@ -420,7 +420,7 @@ function App() {
           </ScrollArea>
         </div>
       </div>
-      <Toaster position="bottom-right" />
+      <Toaster position="top-center" offset={48} />
     </TooltipProvider>
   );
 }
