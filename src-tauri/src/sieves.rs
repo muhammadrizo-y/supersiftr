@@ -58,6 +58,19 @@ fn extension_set_matches(file_name: &str, exts: &HashSet<String>) -> bool {
     })
 }
 
+/// First enabled kind whose extensions match `file_name`'s suffix,
+/// case-insensitively. Used by the sort-into-subfolder action to derive the
+/// destination subfolder.
+pub fn matching_kind<'a>(file_name: &str, kinds: &'a [Kind]) -> Option<&'a Kind> {
+    kinds.iter().find(|k| {
+        k.enabled
+            && extension_set_matches(
+                file_name,
+                &k.extensions.iter().map(|e| e.to_lowercase()).collect(),
+            )
+    })
+}
+
 impl SieveCondition {
     /// Resolves the extension set this condition matches against, depending on
     /// property: kind ids expand to their kind extensions; extension
@@ -173,6 +186,14 @@ pub enum DeleteMode {
     Permanent,
 }
 
+/// What a sort-into-subfolder action names the destination subfolder after.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SortKey {
+    Extension,
+    Kind,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleAction {
@@ -180,6 +201,7 @@ pub enum RuleAction {
     Copy { folder: String },
     Rename { name: String },
     Delete { mode: DeleteMode },
+    SortInto { folder: String, by: SortKey },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -584,6 +606,22 @@ mod tests {
             Vec::new(),
         );
         assert!(s2.matches(Path::new("clip.mp4"), &[movie]));
+    }
+
+    #[test]
+    fn matching_kind_skips_disabled_and_requires_suffix() {
+        let kinds = vec![kind("movie", &["mp4"])];
+        assert_eq!(
+            matching_kind("clip.mp4", &kinds).map(|k| k.name.as_str()),
+            Some("movie")
+        );
+        assert_eq!(matching_kind("clip.txt", &kinds).map(|k| k.name.as_str()), None);
+        let mut disabled = kind("movie", &["mp4"]);
+        disabled.enabled = false;
+        assert_eq!(
+            matching_kind("clip.mp4", &[disabled]).map(|k| k.name.as_str()),
+            None
+        );
     }
 
     #[test]

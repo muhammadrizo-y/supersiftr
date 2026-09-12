@@ -5,11 +5,31 @@ use std::time::Duration;
 
 use thiserror::Error;
 
-use crate::sieves::{DeleteMode, RuleAction};
+use crate::kinds::Kind;
+use crate::sieves::{DeleteMode, RuleAction, SortKey};
 use crate::suffix;
 
 const MAX_RETRIES: u32 = 5;
 const RETRY_DELAY: Duration = Duration::from_millis(200);
+
+/// Catch-all subfolder for items a sort-into-subfolder action can't classify:
+/// extensionless files and files matching no enabled kind. Bracketed so it
+/// can never collide with a real extension or kind name.
+const MISC_FOLDER: &str = "[misc]";
+
+/// Strips characters a Windows folder name can't contain and trailing dots or
+/// spaces, falling back to `fallback` when nothing valid remains (an all-
+/// illegal title, e.g. one that is only "?:").
+fn sanitize_folder_name(input: &str, fallback: &str) -> String {
+    let mut out: String = input
+        .chars()
+        .filter(|c| !matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') && *c as u32 >= 32)
+        .collect();
+    while out.ends_with('.') || out.ends_with(' ') {
+        out.pop();
+    }
+    if out.is_empty() { fallback.to_string() } else { out }
+}
 
 #[derive(Debug, Error)]
 pub enum ActionError {
@@ -34,6 +54,7 @@ pub fn execute(
     source: &Path,
     action: &RuleAction,
     custom_suffixes: &[String],
+    kinds: &[Kind],
 ) -> Result<PathBuf, ActionError> {
     if !source.exists() {
         return Err(ActionError::SourceNotFound(
@@ -65,6 +86,32 @@ pub fn execute(
             let new_name = format!("{resolved_name}{suffix_str}");
             let dest = source.with_file_name(&new_name);
             retry(|| fs::rename(source, &dest))?;
+            Ok(dest)
+        }
+        RuleAction::SortInto { folder, by } => {
+            let file_name = source
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let key = match by {
+                SortKey::Extension => {
+                    let (_, suffix_str) = suffix::split(&file_name, custom_suffixes);
+                    let ext = suffix_str.trim_start_matches('.');
+                    if ext.is_empty() {
+                        MISC_FOLDER.to_string()
+                    } else {
+                        ext.to_ascii_lowercase()
+                    }
+                }
+                SortKey::Kind => match crate::sieves::matching_kind(&file_name, kinds) {
+                    Some(kind) => sanitize_folder_name(&kind.title, &kind.name),
+                    None => MISC_FOLDER.to_string(),
+                },
+            };
+            let dest_dir = PathBuf::from(folder).join(key);
+            fs::create_dir_all(&dest_dir)?;
+            let dest = dest_dir.join(&file_name);
+            move_file(source, &dest)?;
             Ok(dest)
         }
         RuleAction::Delete { mode } => {
@@ -165,13 +212,11 @@ mod tests {
         fs::create_dir_all(&dest_dir).unwrap();
         File::create(&src).unwrap();
 
-        let result = execute(
-            &src,
+        let result = execute(&src,
             &RuleAction::Move {
                 folder: dest_dir.to_string_lossy().to_string(),
             },
-            &[],
-        );
+            &[], &[]);
         assert!(result.is_ok());
         assert!(result.unwrap() == dest_dir.join("a.txt"));
         assert!(!src.exists());
@@ -185,13 +230,11 @@ mod tests {
         fs::create_dir_all(&dest_dir).unwrap();
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(
-            &src,
+        let result = execute(&src,
             &RuleAction::Copy {
                 folder: dest_dir.to_string_lossy().to_string(),
             },
-            &[],
-        );
+            &[], &[]);
         assert!(result.is_ok());
         assert!(src.exists());
         assert!(dest_dir.join("a.txt").exists());
@@ -203,7 +246,7 @@ mod tests {
         let src = dir.join("a.txt");
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { name: "new".into() }, &[]);
+        let result = execute(&src, &RuleAction::Rename { name: "new".into() }, &[], &[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("new.txt"));
         assert!(dir.join("new.txt").exists());
@@ -216,7 +259,7 @@ mod tests {
         let src = dir.join("photo.tar.gz");
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { name: "album".into() }, &[]);
+        let result = execute(&src, &RuleAction::Rename { name: "album".into() }, &[], &[]);
         // .tar.gz is a recognized compound suffix, so the full suffix is kept.
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("album.tar.gz"));
@@ -229,7 +272,7 @@ mod tests {
         let src = dir.join("a.txt");
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { name: "{name}_copy".into() }, &[]);
+        let result = execute(&src, &RuleAction::Rename { name: "{name}_copy".into() }, &[], &[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("a_copy.txt"));
         assert!(dir.join("a_copy.txt").exists());
@@ -242,7 +285,7 @@ mod tests {
         let src = dir.join("a.txt");
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { name: "{name}".into() }, &[]);
+        let result = execute(&src, &RuleAction::Rename { name: "{name}".into() }, &[], &[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("a.txt"));
         assert!(dir.join("a.txt").exists());
@@ -254,7 +297,7 @@ mod tests {
         let src = dir.join(".env");
         fs::write(&src, "x=1").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { name: "config".into() }, &[]);
+        let result = execute(&src, &RuleAction::Rename { name: "config".into() }, &[], &[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("config"));
         assert!(dir.join("config").exists());
@@ -267,7 +310,7 @@ mod tests {
         let src = dir.join(".example.env");
         fs::write(&src, "x=1").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { name: "config".into() }, &[]);
+        let result = execute(&src, &RuleAction::Rename { name: "config".into() }, &[], &[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("config.env"));
         assert!(dir.join("config.env").exists());
@@ -280,7 +323,7 @@ mod tests {
         let src = dir.join("photo.tar.gz");
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { name: "archive-{name}".into() }, &[]);
+        let result = execute(&src, &RuleAction::Rename { name: "archive-{name}".into() }, &[], &[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("archive-photo.tar.gz"));
         assert!(dir.join("archive-photo.tar.gz").exists());
@@ -292,7 +335,7 @@ mod tests {
         let src = dir.join("index.test.ts");
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(&src, &RuleAction::Rename { name: "router".into() }, &[".test.ts".into()]);
+        let result = execute(&src, &RuleAction::Rename { name: "router".into() }, &[".test.ts".into()], &[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("router.test.ts"));
         assert!(dir.join("router.test.ts").exists());
@@ -305,7 +348,7 @@ mod tests {
         fs::write(&src, "hello").unwrap();
 
         // .pdf is the only recognized suffix here; .final is part of the name.
-        let result = execute(&src, &RuleAction::Rename { name: "final".into() }, &[]);
+        let result = execute(&src, &RuleAction::Rename { name: "final".into() }, &[], &[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("final.pdf"));
         assert!(dir.join("final.pdf").exists());
@@ -319,11 +362,11 @@ mod tests {
         fs::create_dir_all(&dest_dir).unwrap();
         fs::write(&src, "hello").unwrap();
 
-        let renamed = execute(&src, &RuleAction::Rename { name: "b".into() }, &[]).unwrap();
+        let renamed = execute(&src, &RuleAction::Rename { name: "b".into() }, &[], &[]).unwrap();
         assert_eq!(renamed, dir.join("b.txt"));
         let moved = execute(&renamed, &RuleAction::Move {
             folder: dest_dir.to_string_lossy().to_string(),
-        }, &[])
+        }, &[], &[])
         .unwrap();
         assert_eq!(moved, dest_dir.join("b.txt"));
         assert!(dest_dir.join("b.txt").exists());
@@ -340,15 +383,177 @@ mod tests {
 
         let copy = execute(&src, &RuleAction::Copy {
             folder: dest_dir.to_string_lossy().to_string(),
-        }, &[])
+        }, &[], &[])
         .unwrap();
         assert_eq!(copy, dest_dir.join("a.txt"));
         assert!(src.exists());
 
-        let renamed = execute(&copy, &RuleAction::Rename { name: "b".into() }, &[]).unwrap();
+        let renamed = execute(&copy, &RuleAction::Rename { name: "b".into() }, &[], &[]).unwrap();
         assert_eq!(renamed, dest_dir.join("b.txt"));
         assert!(dest_dir.join("b.txt").exists());
         assert!(dest_dir.join("a.txt").exists() == false);
+    }
+
+    #[test]
+    fn sort_into_subfolder_by_extension() {
+        let dir = temp_dir("sort_ext");
+        let src = dir.join("photo.tar.gz");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(
+            &src,
+            &RuleAction::SortInto {
+                folder: dir.to_string_lossy().to_string(),
+                by: SortKey::Extension,
+            },
+            &[],
+            &[],
+        );
+        assert!(result.is_ok());
+        let dest = dir.join("tar.gz").join("photo.tar.gz");
+        assert_eq!(result.unwrap(), dest);
+        assert!(dest.exists());
+        assert!(!src.exists());
+    }
+
+    #[test]
+    fn sort_into_subfolder_keeps_extension_lowercase() {
+        let dir = temp_dir("sort_ext_lower");
+        let src = dir.join("PHOTO.TAR.GZ");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(
+            &src,
+            &RuleAction::SortInto {
+                folder: dir.to_string_lossy().to_string(),
+                by: SortKey::Extension,
+            },
+            &[],
+            &[],
+        );
+        assert!(result.is_ok());
+        let dest = dir.join("tar.gz").join("PHOTO.TAR.GZ");
+        assert_eq!(result.unwrap(), dest);
+        assert!(dest.exists());
+    }
+
+    #[test]
+    fn sort_into_sanitizes_kind_subfolder() {
+        let dir = temp_dir("sort_sanitize");
+        let kinds = vec![
+            crate::kinds::Kind {
+                name: "movie".into(),
+                title: "Movie: Final Cut?".into(),
+                extensions: vec!["mp4".into()],
+                enabled: true,
+                is_default: false,
+            },
+            crate::kinds::Kind {
+                name: "docs".into(),
+                title: ">>".into(),
+                extensions: vec!["txt".into()],
+                enabled: true,
+                is_default: false,
+            },
+        ];
+
+        let clip = dir.join("clip.mp4");
+        fs::write(&clip, "hello").unwrap();
+        let result = execute(
+            &clip,
+            &RuleAction::SortInto {
+                folder: dir.to_string_lossy().to_string(),
+                by: SortKey::Kind,
+            },
+            &[],
+            &kinds,
+        );
+        assert_eq!(result.unwrap(), dir.join("Movie Final Cut").join("clip.mp4"));
+
+        let notes = dir.join("notes.txt");
+        fs::write(&notes, "hello").unwrap();
+        let result = execute(
+            &notes,
+            &RuleAction::SortInto {
+                folder: dir.to_string_lossy().to_string(),
+                by: SortKey::Kind,
+            },
+            &[],
+            &kinds,
+        );
+        // ">>" strips to nothing, so the slug name is used instead.
+        assert_eq!(result.unwrap(), dir.join("docs").join("notes.txt"));
+    }
+
+    #[test]
+    fn sort_into_subfolder_by_kind_falls_back_to_misc() {
+        let dir = temp_dir("sort_kind");
+        let src = dir.join("notes.txt");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(
+            &src,
+            &RuleAction::SortInto {
+                folder: dir.to_string_lossy().to_string(),
+                by: SortKey::Kind,
+            },
+            &[],
+            &[],
+        );
+        assert!(result.is_ok());
+        let dest = dir.join("[misc]").join("notes.txt");
+        assert_eq!(result.unwrap(), dest);
+        assert!(dest.exists());
+    }
+
+    #[test]
+    fn sort_into_subfolder_by_kind_uses_matching_kind() {
+        let dir = temp_dir("sort_kind_hit");
+        let src = dir.join("clip.mp4");
+        fs::write(&src, "hello").unwrap();
+        let kinds = vec![crate::kinds::Kind {
+            name: "movie".into(),
+            title: "Movie".into(),
+            extensions: vec!["mp4".into()],
+            enabled: true,
+            is_default: false,
+        }];
+
+        let result = execute(
+            &src,
+            &RuleAction::SortInto {
+                folder: dir.to_string_lossy().to_string(),
+                by: SortKey::Kind,
+            },
+            &[],
+            &kinds,
+        );
+        assert!(result.is_ok());
+        let dest = dir.join("Movie").join("clip.mp4");
+        assert_eq!(result.unwrap(), dest);
+        assert!(dest.exists());
+    }
+
+    #[test]
+    fn sort_into_subfolder_extensionless_goes_to_misc() {
+        let dir = temp_dir("sort_noext");
+        let src = dir.join("README");
+        fs::write(&src, "hello").unwrap();
+
+        let result = execute(
+            &src,
+            &RuleAction::SortInto {
+                folder: dir.to_string_lossy().to_string(),
+                by: SortKey::Extension,
+            },
+            &[],
+            &[],
+        );
+        assert!(result.is_ok());
+        let dest = dir.join("[misc]").join("README");
+        assert_eq!(result.unwrap(), dest);
+        assert!(dest.exists());
+        assert!(!src.exists());
     }
 
     #[test]
@@ -356,7 +561,7 @@ mod tests {
         let dir = temp_dir("source_err");
         let src = dir.join("nope.txt");
 
-        let result = execute(&src, &RuleAction::Rename { name: "x".into() }, &[]);
+        let result = execute(&src, &RuleAction::Rename { name: "x".into() }, &[], &[]);
         assert!(matches!(result, Err(ActionError::SourceNotFound(_))));
     }
 
@@ -366,13 +571,11 @@ mod tests {
         let src = dir.join("a.txt");
         fs::write(&src, "hello").unwrap();
 
-        let result = execute(
-            &src,
+        let result = execute(&src,
             &RuleAction::Delete {
                 mode: DeleteMode::Permanent,
             },
-            &[],
-        );
+            &[], &[]);
         assert!(result.is_ok());
         assert!(!src.exists());
     }

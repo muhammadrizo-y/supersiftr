@@ -1,10 +1,13 @@
 export type DeleteMode = "recycle" | "permanent";
 
+export type SortKey = "extension" | "kind";
+
 export type RuleAction =
   | { type: "move"; folder: string }
   | { type: "copy"; folder: string }
   | { type: "rename"; name: string }
-  | { type: "delete"; mode: DeleteMode };
+  | { type: "delete"; mode: DeleteMode }
+  | { type: "sort_into"; folder: string; by: SortKey };
 
 export type ActionType = RuleAction["type"];
 

@@ -56,6 +56,7 @@ import type {
   RuleAction,
   Sieve,
   SieveCondition,
+  SortKey,
 } from "@/types";
 
 type ConditionRowState = {
@@ -70,6 +71,7 @@ type ActionRowState = {
   folder: string;
   name: string;
   mode: DeleteMode;
+  by: SortKey;
 };
 
 type SieveFormState = {
@@ -121,6 +123,12 @@ const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
   { value: "copy", label: "Copy" },
   { value: "rename", label: "Rename" },
   { value: "delete", label: "Delete" },
+  { value: "sort_into", label: "Sort into subfolder" },
+];
+
+const SORT_KEY_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: "extension", label: "Extension" },
+  { value: "kind", label: "Kind" },
 ];
 
 const DELETE_OPTIONS: { value: DeleteMode; label: string }[] = [
@@ -153,6 +161,7 @@ function actionRowFromAction(action: RuleAction): ActionRowState {
         folder: action.folder,
         name: "",
         mode: "recycle",
+        by: "extension",
       };
     case "rename":
       return {
@@ -161,6 +170,7 @@ function actionRowFromAction(action: RuleAction): ActionRowState {
         folder: "",
         name: action.name,
         mode: "recycle",
+        by: "extension",
       };
     case "delete":
       return {
@@ -169,6 +179,16 @@ function actionRowFromAction(action: RuleAction): ActionRowState {
         folder: "",
         name: "",
         mode: action.mode,
+        by: "extension",
+      };
+    case "sort_into":
+      return {
+        id: ++nextActionRowId,
+        type: "sort_into",
+        folder: action.folder,
+        name: "",
+        mode: "recycle",
+        by: action.by,
       };
   }
 }
@@ -255,6 +275,46 @@ function ActionItemRow({
             ))}
           </SelectPopup>
         </Select>
+      ) : action.type === "sort_into" ? (
+        <>
+          <Input
+            value={action.folder}
+            onChange={(e) => onPatch(index, { folder: e.currentTarget.value })}
+            placeholder="D:\\Sorted"
+            className="min-w-0 flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const folder = await pickFolder();
+              if (folder) onPatch(index, { folder });
+            }}
+          >
+            <Folder className="size-3.5" /> Browse…
+          </Button>
+          <span className="shrink-0 text-xs text-muted-foreground">by</span>
+          <Select
+            value={action.by}
+            onValueChange={(value: string | null) =>
+              onPatch(index, { by: value as SortKey })
+            }
+          >
+            <SelectTrigger className="h-8 w-28 shrink-0 gap-1">
+              <SelectValue>
+                {SORT_KEY_OPTIONS.find((o) => o.value === action.by)?.label ?? action.by}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup>
+              {SORT_KEY_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        </>
       ) : (
         <>
           <span className="shrink-0 text-xs text-muted-foreground">
@@ -373,7 +433,7 @@ export function SieveForm({
     }));
 
   function setActionType(index: number, type: ActionType) {
-    updateAction(index, { type, folder: "", name: "", mode: "recycle" });
+    updateAction(index, { type, folder: "", name: "", mode: "recycle", by: "extension" });
   }
 
   function removeAction(index: number) {
@@ -419,6 +479,9 @@ export function SieveForm({
         }
         if (a.type === "delete") {
           return { type: "delete" as const, mode: a.mode };
+        }
+        if (a.type === "sort_into") {
+          return { type: "sort_into" as const, folder: a.folder.trim(), by: a.by };
         }
         return { type: a.type, folder: a.folder.trim() };
       })
@@ -745,6 +808,7 @@ export function SieveForm({
                         folder: "",
                         name: "",
                         mode: "recycle",
+                        by: "extension",
                       },
                     ])
                   }

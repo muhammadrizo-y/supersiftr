@@ -138,7 +138,7 @@ impl AppState {
             if sieve.matches(&path, &kinds) {
                 let mut current = path.to_owned();
                 for action in &sieve.actions {
-                    match actions::execute(&current, action, &compound_extensions) {
+                    match actions::execute(&current, action, &compound_extensions, &kinds) {
                         Ok(dest) => {
                             let verb = action_verb(action);
                             let target = match action {
@@ -200,6 +200,7 @@ fn action_verb(action: &RuleAction) -> &'static str {
         RuleAction::Rename { .. } => "Renamed",
         RuleAction::Delete { mode: DeleteMode::Recycle } => "Sent to recycle bin",
         RuleAction::Delete { mode: DeleteMode::Permanent } => "Deleted",
+        RuleAction::SortInto { .. } => "Sorted",
     }
 }
 

@@ -101,6 +101,8 @@ function describeAction(action: RuleAction): string {
       return `Rename to ${action.name}`;
     case "delete":
       return action.mode === "recycle" ? "Move to Recycle Bin" : "Delete Permanently";
+    case "sort_into":
+      return `Sort into ${action.folder} by ${action.by}`;
   }
 }
 
