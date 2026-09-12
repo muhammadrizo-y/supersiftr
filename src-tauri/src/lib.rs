@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod config;
 pub mod kinds;
+pub mod license;
 pub mod logging;
 pub mod sieves;
 pub mod state;
@@ -14,6 +15,7 @@ use tauri_plugin_autostart::ManagerExt;
 
 use crate::config::{AppConfig, DateFormat};
 use crate::kinds::Kind;
+use crate::license::LicenseStore;
 use crate::sieves::Sieve;
 use crate::state::AppState;
 
@@ -400,6 +402,40 @@ fn reset_kind(name: String, app: tauri::AppHandle) -> Result<Vec<Kind>, String> 
 }
 
 #[tauri::command]
+fn get_license_status(state: State<'_, AppState>) -> LicenseStore {
+    state.license.lock().unwrap().clone()
+}
+
+#[tauri::command]
+async fn activate_license(key: String, app: tauri::AppHandle) -> Result<LicenseStore, String> {
+    let activated = license::activate(&key).await.map_err(|e| e.to_string())?;
+    let state = app.state::<AppState>();
+    *state.license.lock().unwrap() = activated.clone();
+    Ok(activated)
+}
+
+#[tauri::command]
+async fn refresh_license(app: tauri::AppHandle) -> Result<LicenseStore, String> {
+    let current = { app.state::<AppState>().license.lock().unwrap().clone() };
+    if current.activation_id.is_none() {
+        return Ok(current);
+    }
+    let refreshed = license::refresh(current).await.map_err(|e| e.to_string())?;
+    let state = app.state::<AppState>();
+    *state.license.lock().unwrap() = refreshed.clone();
+    Ok(refreshed)
+}
+
+#[tauri::command]
+async fn deactivate_license(app: tauri::AppHandle) -> Result<LicenseStore, String> {
+    let current = { app.state::<AppState>().license.lock().unwrap().clone() };
+    let cleared = license::deactivate(current).await.map_err(|e| e.to_string())?;
+    let state = app.state::<AppState>();
+    *state.license.lock().unwrap() = cleared.clone();
+    Ok(cleared)
+}
+
+#[tauri::command]
 fn get_logs(state: State<'_, AppState>, count: Option<usize>) -> Vec<logging::LogEntry> {
     state.log.read_tail(count.unwrap_or(200))
 }
@@ -466,6 +502,17 @@ pub fn run() {
                     *tray = Some(build_tray(app.handle()).map_err(|e| format!("setup tray: {e}"))?);
                 }
             }
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let current = { app_handle.state::<AppState>().license.lock().unwrap().clone() };
+                    if current.activation_id.is_some() && current.needs_revalidation() {
+                        if let Ok(refreshed) = license::refresh(current).await {
+                            *app_handle.state::<AppState>().license.lock().unwrap() = refreshed;
+                        }
+                    }
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -491,7 +538,11 @@ pub fn run() {
             update_kind,
             delete_kind,
             set_kind_enabled,
-            reset_kind
+            reset_kind,
+            get_license_status,
+            activate_license,
+            refresh_license,
+            deactivate_license
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

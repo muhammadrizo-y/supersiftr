@@ -5,6 +5,7 @@ use tauri::Manager;
 use crate::actions;
 use crate::config::{self, AppConfig};
 use crate::kinds::{self, KindStore};
+use crate::license::{self, LicenseStore};
 use crate::logging::ActivityLog;
 use crate::sieves::{self, DeleteMode, RuleAction, Sieve, SieveStore};
 use crate::watcher::FileWatcher;
@@ -15,6 +16,7 @@ pub struct AppState {
     pub first_run: bool,
     pub sieves: Mutex<SieveStore>,
     pub kinds: Mutex<KindStore>,
+    pub license: Mutex<LicenseStore>,
     pub log: ActivityLog,
     pub tray: Mutex<Option<tauri::tray::TrayIcon>>,
 }
@@ -34,6 +36,7 @@ impl AppState {
             first_run,
             sieves: Mutex::new(sieves::load().unwrap_or_default()),
             kinds: Mutex::new(kinds::load().unwrap_or_default()),
+            license: Mutex::new(license::load().unwrap_or_default()),
             log: ActivityLog::new(config_dir),
             tray: Mutex::new(None),
         }

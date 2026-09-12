@@ -73,3 +73,13 @@ export type View =
   | { kind: "new" }
   | { kind: "activity" }
   | { kind: "settings" };
+
+export type LicenseStatus = "inactive" | "active" | "invalid";
+
+export type LicenseStore = {
+  key: string | null;
+  activation_id: string | null;
+  device_label: string | null;
+  last_validated_at: string | null;
+  status: LicenseStatus;
+};

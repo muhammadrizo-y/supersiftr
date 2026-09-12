@@ -35,10 +35,102 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { isValidCompoundSuffix } from "@/lib/sieves";
-import type { AppConfig, CompoundExtensionsView, ConfigView, Kind } from "@/types";
+
+import type { AppConfig, CompoundExtensionsView, ConfigView, Kind, LicenseStore } from "@/types";
 import { KindForm } from "./KindForm";
+
+function LicenseSection() {
+  const [license, setLicense] = useState<LicenseStore | null>(null);
+  const [keyInput, setKeyInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    invoke<LicenseStore>("get_license_status").then(setLicense).catch(() => {});
+  }, []);
+
+  async function onActivate() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await invoke<LicenseStore>("activate_license", { key: keyInput.trim() });
+      setLicense(result);
+      setKeyInput("");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeactivate() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await invoke<LicenseStore>("deactivate_license");
+      setLicense(result);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const isLicensed = license?.status === "active" && license.activation_id !== null;
+
+  return (
+    <div className="mb-6 overflow-hidden rounded-lg border border-border">
+      <div className="flex items-center justify-between gap-4 px-4 py-3">
+        <div>
+          <p className="text-sm font-medium">License</p>
+          {isLicensed ? (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Activated on this device
+              {license?.device_label ? ` as "${license.device_label}"` : ""}.
+            </p>
+          ) : (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Enter your license key to unlock paid features on this device.
+            </p>
+          )}
+        </div>
+        <Badge variant={isLicensed ? "secondary" : "outline"} className="shrink-0">
+          {isLicensed ? "Active" : license?.status === "invalid" ? "Invalid" : "Not activated"}
+        </Badge>
+      </div>
+      <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+        {isLicensed ? (
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => void onDeactivate()}>
+            Deactivate this device
+          </Button>
+        ) : (
+          <>
+            <Input
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+              placeholder="License key"
+              className="max-w-xs"
+              disabled={busy}
+            />
+            <Button
+              size="sm"
+              disabled={busy || keyInput.trim().length === 0}
+              onClick={() => void onActivate()}
+            >
+              Activate
+            </Button>
+          </>
+        )}
+      </div>
+      {error && (
+        <p className="border-t border-border px-4 py-2 text-xs text-destructive">{error}</p>
+      )}
+    </div>
+  );
+}
 
 export function SettingsTab({
   kinds,
@@ -123,6 +215,7 @@ export function SettingsTab({
   return (
     <section className="px-6 py-5">
       <h2 className="mb-4 text-2xl font-semibold">Settings</h2>
+      <LicenseSection />
       <div className="mb-6 overflow-hidden rounded-lg border border-border">
         <div className="flex items-center justify-between gap-4 px-4 py-3">
           <div>

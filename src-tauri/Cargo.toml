@@ -33,4 +33,6 @@ regex = "1"
 thiserror = "2"
 dirs = "6"
 trash = "5"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+whoami = "1"
 
