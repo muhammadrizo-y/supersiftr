@@ -121,7 +121,7 @@ impl AppState {
         let (sieves, kinds, compound_extensions) = {
             let sieves = state.sieves.lock().unwrap();
             let kinds = state.kinds.lock().unwrap();
-            (sieves.sieves.clone(), kinds.kinds.clone(), state.config.lock().unwrap().compound_extensions.clone())
+            (sieves.sieves.clone(), kinds.effective(), state.config.lock().unwrap().compound_extensions.clone())
         };
 
         if !path.exists() {

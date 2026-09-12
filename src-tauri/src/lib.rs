@@ -295,7 +295,7 @@ fn get_sieves(state: State<'_, AppState>) -> Vec<Sieve> {
 }
 
 fn get_kind_list(state: State<'_, AppState>) -> Vec<Kind> {
-    state.kinds.lock().unwrap().kinds.clone()
+    state.kinds.lock().unwrap().effective()
 }
 
 #[tauri::command]
@@ -314,31 +314,23 @@ fn add_kind(kind: Kind, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
         let base = kinds::slugify(&kind.name)
             .or_else(|| kinds::slugify(&kind.title))
             .ok_or_else(|| "Kind name can't be empty".to_string())?;
-        kind.name = kinds::unique_name(&base, &store.kinds);
-        store.kinds.push(kind);
+        kind.name = kinds::unique_name(&base, &store.effective());
+        store.upsert_override(kind);
         kinds::save(&store).map_err(|e| e.to_string())?;
     }
     Ok(get_kind_list(app.state::<AppState>()))
 }
 
 #[tauri::command]
-fn update_kind(kind: Kind, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
+fn update_kind(mut kind: Kind, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
     {
         let state = app.state::<AppState>();
         let mut store = state.kinds.lock().unwrap();
-        match store
-            .kinds
-            .iter_mut()
-            .find(|p| p.name == kind.name)
-        {
-            Some(existing) => {
-                existing.title = kind.title;
-                existing.extensions = kind.extensions;
-                existing.enabled = kind.enabled;
-                existing.is_default = kind.is_default;
-            }
-            None => return Err(kinds::KindError::NotFound.to_string()),
+        if !store.effective().iter().any(|p| p.name == kind.name) {
+            return Err(kinds::KindError::NotFound.to_string());
         }
+        kind.is_default = kinds::default_kind(&kind.name).is_some();
+        store.upsert_override(kind);
         kinds::save(&store).map_err(|e| e.to_string())?;
     }
     Ok(get_kind_list(app.state::<AppState>()))
@@ -349,10 +341,8 @@ fn delete_kind(name: String, app: tauri::AppHandle) -> Result<Vec<Kind>, String>
     {
         let state = app.state::<AppState>();
         let mut store = state.kinds.lock().unwrap();
-        if let Some(existing) = store.kinds.iter().find(|p| p.name == name) {
-            if existing.is_default {
-                return Err("Default kinds can't be deleted".into());
-            }
+        if kinds::default_kind(&name).is_some() {
+            return Err("Default kinds can't be deleted".into());
         }
         let before = store.kinds.len();
         store.kinds.retain(|p| p.name != name);
@@ -369,10 +359,16 @@ fn set_kind_enabled(name: String, enabled: bool, app: tauri::AppHandle) -> Resul
     {
         let state = app.state::<AppState>();
         let mut store = state.kinds.lock().unwrap();
-        match store.kinds.iter_mut().find(|p| p.name == name) {
-            Some(existing) => existing.enabled = enabled,
+        let mut kind = match store.effective().iter().find(|p| p.name == name) {
+            Some(existing) => {
+                let mut kind = existing.clone();
+                kind.enabled = enabled;
+                kind
+            }
             None => return Err(kinds::KindError::NotFound.to_string()),
-        }
+        };
+        kind.is_default = kinds::default_kind(&name).is_some();
+        store.upsert_override(kind);
         kinds::save(&store).map_err(|e| e.to_string())?;
     }
     Ok(get_kind_list(app.state::<AppState>()))
@@ -380,22 +376,13 @@ fn set_kind_enabled(name: String, enabled: bool, app: tauri::AppHandle) -> Resul
 
 #[tauri::command]
 fn reset_kind(name: String, app: tauri::AppHandle) -> Result<Vec<Kind>, String> {
-    let defaults = kinds::load_defaults().map_err(|e| e.to_string())?;
-    let Some(default_kind) = defaults.iter().find(|p| p.name == name) else {
+    if kinds::default_kind(&name).is_none() {
         return Err(format!("No default kind named \"{name}\""));
-    };
+    }
     {
         let state = app.state::<AppState>();
         let mut store = state.kinds.lock().unwrap();
-        match store.kinds.iter_mut().find(|p| p.name == name) {
-            Some(existing) => {
-                existing.title = default_kind.title.clone();
-                existing.extensions = default_kind.extensions.clone();
-                existing.enabled = true;
-                existing.is_default = true;
-            }
-            None => return Err(kinds::KindError::NotFound.to_string()),
-        }
+        store.kinds.retain(|p| p.name != name);
         kinds::save(&store).map_err(|e| e.to_string())?;
     }
     Ok(get_kind_list(app.state::<AppState>()))

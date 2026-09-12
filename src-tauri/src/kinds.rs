@@ -20,7 +20,7 @@ pub enum KindError {
     NotFound,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Kind {
     /// Stable identifier (e.g. "movie"). Rules/sieves reference kinds by this
     /// id; renaming `title` does not break references.
@@ -33,8 +33,8 @@ pub struct Kind {
     /// extensions in sieve conditions.
     #[serde(default)]
     pub enabled: bool,
-    /// Built-in kind backed by `default_kinds.json`: can't be deleted, but can
-    /// be edited and reset to its shipped defaults.
+    /// Derived from the hardcoded default list on read; the persisted value is
+    /// ignored, kept only so older `kinds.json` files still deserialize.
     #[serde(default)]
     pub is_default: bool,
 }
@@ -43,12 +43,9 @@ pub struct Kind {
 /// shape breaks; independent of config/sieves versions.
 const KINDS_SCHEMA_VERSION: u32 = 1;
 
-/// Current schema version of `default_kinds.json`. Bump only when that file's
-/// shape breaks.
-const DEFAULT_KINDS_SCHEMA_VERSION: u32 = 1;
-
-/// The built-in kinds shipped with the app. Materialized into
-/// `default_kinds.json` on first run; `Reset` restores a kind from there.
+/// The shipped default kinds, compiled in. `kinds.json` stores only user
+/// overrides of these plus custom kinds; effective kinds are the defaults
+/// merged with those entries.
 fn default_kinds() -> Vec<Kind> {
     vec![
         Kind {
@@ -113,10 +110,17 @@ fn default_kinds() -> Vec<Kind> {
     ]
 }
 
+/// The hardcoded default kind with the given name, if any.
+pub fn default_kind(name: &str) -> Option<Kind> {
+    default_kinds().into_iter().find(|k| k.name == name)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KindStore {
     pub schema_version: u32,
+    /// User overrides of default kinds plus custom kinds — never a full copy
+    /// of the defaults. See `effective`.
     pub kinds: Vec<Kind>,
 }
 
@@ -124,26 +128,54 @@ impl Default for KindStore {
     fn default() -> Self {
         Self {
             schema_version: KINDS_SCHEMA_VERSION,
-            kinds: default_kinds(),
+            kinds: Vec::new(),
         }
     }
 }
 
-/// The shipped default kinds "Reset" restores from. Written to disk on first
-/// run so it has an explicit schema_version like every other JSON file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct DefaultKindStore {
-    pub schema_version: u32,
-    pub kinds: Vec<Kind>,
-}
+impl KindStore {
+    /// Defaults merged with stored overrides, then custom kinds. `is_default`
+    /// is derived from the hardcoded list, so an override of a default that a
+    /// later version removes degrades to a custom kind.
+    pub fn effective(&self) -> Vec<Kind> {
+        let defaults = default_kinds();
+        let mut out: Vec<Kind> = defaults
+            .iter()
+            .map(|d| match self.kinds.iter().find(|k| k.name == d.name) {
+                Some(override_kind) => Kind {
+                    is_default: true,
+                    ..override_kind.clone()
+                },
+                None => d.clone(),
+            })
+            .collect();
+        out.extend(
+            self.kinds
+                .iter()
+                .filter(|k| !defaults.iter().any(|d| d.name == k.name))
+                .cloned()
+                .map(|k| Kind { is_default: false, ..k }),
+        );
+        out
+    }
 
-impl Default for DefaultKindStore {
-    fn default() -> Self {
-        Self {
-            schema_version: DEFAULT_KINDS_SCHEMA_VERSION,
-            kinds: default_kinds(),
+    /// Inserts or replaces the stored entry for `kind.name`.
+    pub fn upsert_override(&mut self, kind: Kind) {
+        match self.kinds.iter_mut().find(|k| k.name == kind.name) {
+            Some(existing) => *existing = kind,
+            None => self.kinds.push(kind),
         }
+    }
+
+    /// Drops stored entries identical to the shipped default, so updated
+    /// defaults reach users who never customized that kind.
+    fn normalized(mut self) -> Self {
+        self.kinds
+            .retain(|k| match default_kind(&k.name) {
+                Some(d) => *k != d,
+                None => true,
+            });
+        self
     }
 }
 
@@ -190,37 +222,14 @@ pub fn kinds_path() -> Result<PathBuf, KindError> {
     Ok(config_dir()?.join("kinds.json"))
 }
 
-pub fn default_kinds_path() -> Result<PathBuf, KindError> {
-    Ok(config_dir()?.join("default_kinds.json"))
-}
-
-/// The shipped default kinds, materializing `default_kinds.json` on first run.
-pub fn load_defaults() -> Result<Vec<Kind>, KindError> {
-    let path = default_kinds_path()?;
-    if !path.exists() {
-        let store = DefaultKindStore::default();
-        let contents = serde_json::to_string_pretty(&store)?;
-        fs::write(path, contents)?;
-        return Ok(store.kinds);
-    }
-    let contents = fs::read_to_string(path)?;
-    let store: DefaultKindStore = serde_json::from_str(&contents)?;
-    Ok(store.kinds)
-}
-
 pub fn load() -> Result<KindStore, KindError> {
-    let defaults = load_defaults()?;
     let path = kinds_path()?;
     if !path.exists() {
-        let store = KindStore {
-            schema_version: KINDS_SCHEMA_VERSION,
-            kinds: defaults,
-        };
-        let _ = save(&store);
-        return Ok(store);
+        return Ok(KindStore::default());
     }
     let contents = fs::read_to_string(path)?;
-    Ok(serde_json::from_str(&contents)?)
+    let store: KindStore = serde_json::from_str(&contents)?;
+    Ok(store.normalized())
 }
 
 pub fn save(store: &KindStore) -> Result<(), KindError> {
@@ -233,6 +242,16 @@ pub fn save(store: &KindStore) -> Result<(), KindError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn custom_kind(name: &str) -> Kind {
+        Kind {
+            name: name.into(),
+            title: name.into(),
+            extensions: vec!["xyz".into()],
+            enabled: true,
+            is_default: false,
+        }
+    }
 
     #[test]
     fn slugify_normalizes_titles() {
@@ -266,33 +285,77 @@ mod tests {
     }
 
     #[test]
-    fn defaults_are_unique() {
-        let store = KindStore::default();
-        let mut names: Vec<&str> = store.kinds.iter().map(|p| p.name.as_str()).collect();
-        names.sort_unstable();
-        names.dedup();
-        assert_eq!(names.len(), store.kinds.len());
-        assert_eq!(store.schema_version, KINDS_SCHEMA_VERSION);
-    }
-
-    #[test]
-    fn default_kinds_are_marked_default_and_enabled() {
+    fn default_kinds_are_unique_default_and_enabled() {
         let kinds = default_kinds();
         assert!(!kinds.is_empty());
-        assert!(kinds.iter().all(|p| p.is_default && p.enabled));
+        let mut names: Vec<&str> = kinds.iter().map(|k| k.name.as_str()).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), kinds.len());
+        assert!(kinds.iter().all(|k| k.is_default && k.enabled));
     }
 
     #[test]
-    fn default_kind_store_roundtrip() {
-        let store = DefaultKindStore::default();
-        let json = serde_json::to_string(&store).unwrap();
-        let back: DefaultKindStore = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.schema_version, DEFAULT_KINDS_SCHEMA_VERSION);
-        assert_eq!(back.kinds.len(), store.kinds.len());
+    fn effective_without_overrides_is_the_defaults() {
+        let store = KindStore::default();
+        assert_eq!(store.effective(), default_kinds());
     }
 
     #[test]
-    fn completed_empty_roundtrip() {
+    fn effective_merges_overrides_and_appends_customs() {
+        let mut movie = default_kind("movie").unwrap();
+        movie.extensions = vec!["mp4".into()];
+        let store = KindStore {
+            schema_version: KINDS_SCHEMA_VERSION,
+            kinds: vec![movie, custom_kind("screenshots")],
+        };
+        let effective = store.effective();
+        assert_eq!(effective.len(), default_kinds().len() + 1);
+        let movie = effective.iter().find(|k| k.name == "movie").unwrap();
+        assert_eq!(movie.extensions, vec!["mp4"]);
+        assert!(movie.is_default);
+        let screenshots = effective.iter().find(|k| k.name == "screenshots").unwrap();
+        assert!(!screenshots.is_default);
+    }
+
+    #[test]
+    fn normalized_drops_overrides_identical_to_defaults() {
+        let movie = default_kind("movie").unwrap();
+        let store = KindStore {
+            schema_version: KINDS_SCHEMA_VERSION,
+            kinds: vec![movie, custom_kind("screenshots")],
+        };
+        assert_eq!(store.normalized().kinds, vec![custom_kind("screenshots")]);
+    }
+
+    #[test]
+    fn orphaned_default_degrades_to_custom() {
+        let orphan = Kind {
+            name: "legacy".into(),
+            title: "Legacy".into(),
+            extensions: vec!["old".into()],
+            enabled: true,
+            is_default: true,
+        };
+        let store = KindStore { schema_version: KINDS_SCHEMA_VERSION, kinds: vec![orphan] };
+        let effective = store.effective();
+        let legacy = effective.iter().find(|k| k.name == "legacy").unwrap();
+        assert!(!legacy.is_default);
+    }
+
+    #[test]
+    fn upsert_override_replaces_existing_entry() {
+        let mut store = KindStore::default();
+        store.upsert_override(custom_kind("screenshots"));
+        let mut renamed = custom_kind("screenshots");
+        renamed.title = "Screenshots".into();
+        store.upsert_override(renamed);
+        assert_eq!(store.kinds.len(), 1);
+        assert_eq!(store.kinds[0].title, "Screenshots");
+    }
+
+    #[test]
+    fn empty_store_roundtrip() {
         let store = KindStore {
             schema_version: KINDS_SCHEMA_VERSION,
             kinds: Vec::new(),
