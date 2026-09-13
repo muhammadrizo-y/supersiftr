@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { open } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import {
+  BadgeCheck,
   Folder,
   FolderSearch,
   Funnel,
@@ -45,13 +46,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { allKnownExtensions } from "@/lib/sieves";
+import { allKnownExtensions, isValidRustRegex } from "@/lib/sieves";
+import { useProStatus } from "@/lib/license";
 import { cn } from "@/lib/utils";
 import type {
   ActionType,
   ArchiveFormat,
   ConditionMode,
   ConditionOperator,
+  MatchSyntax,
   ConditionProperty,
   DeleteMode,
   ExtractSourceMode,
@@ -66,6 +69,7 @@ type ConditionRowState = {
   property: ConditionProperty;
   operator: ConditionOperator;
   values: string[];
+  syntax: MatchSyntax;
 };
 
 type ActionRowState = {
@@ -132,6 +136,8 @@ const ACTION_OPTIONS: { value: ActionType; label: string }[] = [
   { value: "compress", label: "Compress" },
   { value: "extract", label: "Extract" },
 ];
+
+const PRO_ACTIONS = new Set<ActionType>(["sort_into", "compress", "extract"]);
 
 const SORT_KEY_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "kind", label: "Kind" },
@@ -250,7 +256,10 @@ function formFromSieve(sieve?: Sieve): SieveFormState {
     name: sieve.name,
     watched_folders: sieve.watched_folders,
     mode: sieve.mode,
-    conditions: sieve.conditions.map((c) => ({ ...c })),
+    conditions: sieve.conditions.map((c) => ({
+      ...c,
+      syntax: c.syntax ?? "glob",
+    })),
     actions: sieve.actions.map(actionRowFromAction),
   };
 }
@@ -258,12 +267,14 @@ function formFromSieve(sieve?: Sieve): SieveFormState {
 function ActionItemRow({
   action,
   index,
+  isPro,
   onTypeChange,
   onPatch,
   onRemove,
 }: {
   action: ActionRowState;
   index: number;
+  isPro: boolean;
   onTypeChange: (index: number, type: ActionType) => void;
   onPatch: (index: number, patch: Partial<ActionRowState>) => void;
   onRemove: (index: number) => void;
@@ -299,11 +310,19 @@ function ActionItemRow({
           </SelectValue>
         </SelectTrigger>
         <SelectPopup>
-          {ACTION_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
+          {ACTION_OPTIONS.map((o) => {
+            const pro = PRO_ACTIONS.has(o.value);
+            return (
+              <SelectItem key={o.value} value={o.value} disabled={!isPro && pro}>
+                <span className="flex w-full items-center justify-between gap-2">
+                  {o.label}
+                  {!isPro && pro && (
+                    <BadgeCheck className="size-3.5 text-orange-600 dark:text-orange-400" />
+                  )}
+                </span>
+              </SelectItem>
+            );
+          })}
         </SelectPopup>
       </Select>
       {action.type === "delete" ? (
@@ -507,6 +526,8 @@ export function SieveForm({
 }) {
   const [form, setForm] = useState<SieveFormState>(() => formFromSieve(initial));
 
+  const isPro = useProStatus();
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
@@ -536,6 +557,7 @@ export function SieveForm({
       property,
       operator: OPERATOR_OPTIONS[property][0].value,
       values: property === "type" ? ["file"] : [],
+      syntax: "glob",
     });
   }
 
@@ -631,8 +653,20 @@ export function SieveForm({
             : c.values
                 .map((v) => (c.property === "extension" ? v.trim().toLowerCase() : v.trim()))
                 .filter(Boolean),
+        ...(c.property === "name" && c.syntax === "regex" ? { syntax: "regex" as const } : {}),
       }))
       .filter((c) => c.values.length > 0);
+
+    const invalidRegex = form.conditions.some(
+      (c) =>
+        c.property === "name" &&
+        c.syntax === "regex" &&
+        c.values.some((v) => !isValidRustRegex(v.trim())),
+    );
+    if (invalidRegex) {
+      toast.error("Fix invalid regex patterns before saving.");
+      return;
+    }
 
     onSubmit({
       name: form.name.trim(),
@@ -771,7 +805,7 @@ export function SieveForm({
                   onClick={() =>
                     set("conditions", [
                       ...form.conditions,
-                      { property: "kind", operator: "is", values: [] },
+                      { property: "kind", operator: "is", values: [], syntax: "glob" },
                     ])
                   }
                 >
@@ -859,14 +893,56 @@ export function SieveForm({
                       />
                     )}
                     {c.property === "name" && (
-                      <Combobox
-                        options={[]}
-                        selected={c.values}
-                        onChange={(values) => updateCondition(i, { values })}
-                        allowCustom
-                        placeholder="Add name patterns…"
-                        label="name patterns"
-                      />
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <Select
+                          value={c.syntax}
+                          onValueChange={(value: string | null) =>
+                            updateCondition(i, { syntax: (value ?? "glob") as MatchSyntax })
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-24 shrink-0 gap-1">
+                            <SelectValue>
+                              {c.syntax === "regex" ? "Regex" : "Pattern"}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectPopup>
+                            <SelectItem value="glob">Pattern</SelectItem>
+                            <SelectItem value="regex" disabled={!isPro}>
+                              <span className="flex w-full items-center justify-between gap-2">
+                                Regex
+                                {!isPro && (
+                                  <BadgeCheck className="size-3.5 text-orange-600 dark:text-orange-400" />
+                                )}
+                              </span>
+                            </SelectItem>
+                          </SelectPopup>
+                        </Select>
+                        <div className="min-w-0 flex-1">
+                          <Combobox
+                            options={[]}
+                            selected={c.values}
+                            onChange={(values) => updateCondition(i, { values })}
+                            allowCustom
+                            preserveCase
+                            validateCustom={
+                              c.syntax === "regex" ? (v) => isValidRustRegex(v.trim()) : undefined
+                            }
+                            placeholder={
+                              c.syntax === "regex"
+                                ? "Add regex patterns… e.g. ^report_\d{4}\.pdf$"
+                                : "Add name patterns… e.g. invoice_*"
+                            }
+                            label="name patterns"
+                          />
+                          {c.syntax === "regex" && (
+                            <div className="mt-1 text-xs text-destructive">
+                              {c.values.filter((v) => !isValidRustRegex(v.trim())).length > 0
+                                ? "One or more patterns are invalid regex."
+                                : null}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                     {c.property === "type" && (
                       <Select
@@ -986,6 +1062,7 @@ export function SieveForm({
                     key={a.id}
                     action={a}
                     index={i}
+                    isPro={isPro}
                     onTypeChange={setActionType}
                     onPatch={updateAction}
                     onRemove={removeAction}
@@ -996,8 +1073,8 @@ export function SieveForm({
           </DndContext>
           )}
       <div className="border-t border-border bg-muted/20 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
-        Rename replaces the file's name while keeping its suffix (the
-        recognized file ending). Compound suffixes like{" "}
+        Rename replaces the file's name while keeping its extension (the
+        recognized file ending). Compound extensions like{" "}
         <code>.tar.gz</code> are kept whole. Use{" "}
         <code>{"{name}"}</code> in the pattern to keep the original base
         name, e.g. <code>{"{name}_processed"}</code>. Actions run in

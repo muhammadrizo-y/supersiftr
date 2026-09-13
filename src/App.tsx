@@ -1,10 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Activity, Pencil, Trash2, TriangleAlert } from "lucide-react";
+import { Activity, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Empty,
   EmptyDescription,
@@ -13,26 +24,16 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Switch } from "@/components/ui/switch";
 import { Toaster } from "@/components/ui/sonner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { SieveDetail } from "@/components/SieveDetail";
 import { SieveForm } from "@/components/SieveForm";
 import { SettingsTab } from "@/components/SettingsTab";
 import Sidebar from "@/components/Sidebar";
 import { WindowControls } from "@/components/WindowControls";
+import { fetchUpdate, notifyUpdate } from "@/lib/updater";
+import { useProStatus } from "@/lib/license";
 import { cn } from "@/lib/utils";
-import {
-  describeActions,
-  describeConditions,
-  isRunnable,
-  kindByTitle,
-  missingKinds,
-} from "@/lib/sieves";
 import type { ActivityEntry, ConfigView, Kind, Sieve, View } from "@/types";
 
 function detectDateFormat(): "us" | "uk" {
@@ -52,7 +53,21 @@ function App() {
   const [kinds, setKinds] = useState<Kind[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [view, setView] = useState<View>({ kind: "new" });
+  const [confirmClear, setConfirmClear] = useState(false);
   const [dateFormat, setDateFormat] = useState<"us" | "uk">("uk");
+  const [checkForUpdates, setCheckForUpdates] = useState(false);
+
+  const isPro = useProStatus();
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === "f5" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r")) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const nextId = useRef(0);
 
@@ -71,6 +86,7 @@ function App() {
     );
     invoke<ConfigView>("get_config").then(({ config, fresh }) => {
       setDateFormat(config.date_format);
+      setCheckForUpdates(config.check_for_updates);
       if (fresh) {
         void invoke("set_date_format", { format: detectDateFormat() });
       }
@@ -87,6 +103,20 @@ function App() {
       unlistenSettings.then((f) => f());
     };
   }, [log]);
+
+  useEffect(() => {
+    if (!checkForUpdates) return;
+    let cancelled = false;
+    fetchUpdate()
+      .then((update) => {
+        if (cancelled || !update) return;
+        void notifyUpdate(update.version);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [checkForUpdates]);
 
   const cancelForm = useCallback(() => {
     if (view.kind === "new") {
@@ -219,66 +249,16 @@ function App() {
   }
 
   function renderSieveDetail(sieve: Sieve, index: number) {
-    const missing = missingKinds(sieve, kinds);
     return (
-      <section className="px-6 py-5">
-        {missing.length > 0 && (
-          <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-            <span>
-              Missing kind{missing.length > 1 ? "s" : ""}:{" "}
-              {missing.map((m) => kindByTitle(kinds, m)).join(", ")}.
-              This kind does not exist.
-            </span>
-          </div>
-        )}
-        {!isRunnable(sieve) && (
-          <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-            <span>This sieve has no conditions or actions and will never run.</span>
-          </div>
-        )}
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="text-2xl font-semibold">{sieve.name}</h2>
-          <div className="flex items-center gap-3">
-            <Switch
-              checked={sieve.enabled}
-              onCheckedChange={(checked) => void setSieveEnabled(index, checked)}
-              aria-label={sieve.enabled ? "Disable sieve" : "Enable sieve"}
-            />
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setView({ kind: "edit", index })}
-                  >
-                    <Pencil className="size-3.5" /> Edit
-                  </Button>
-                }
-              />
-              <TooltipContent>Edit this sieve</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-        <dl className="grid grid-cols-[92px_1fr] gap-x-4 gap-y-2 text-sm">
-          <dt className="text-muted-foreground">Watch</dt>
-          <dd>
-            <ul className="space-y-0.5">
-              {sieve.watched_folders.map((f) => (
-                <li key={f} className="select-text font-mono text-xs">
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </dd>
-          <dt className="text-muted-foreground">Match</dt>
-          <dd>{describeConditions(sieve, kinds)}</dd>
-          <dt className="text-muted-foreground">Action</dt>
-          <dd>{describeActions(sieve.actions)}</dd>
-        </dl>
-      </section>
+      <SieveDetail
+        sieve={sieve}
+        index={index}
+        kinds={kinds}
+        isPro={isPro}
+        onGoToSettings={() => setView({ kind: "settings" })}
+        onEdit={(i) => setView({ kind: "edit", index: i })}
+        onToggleEnabled={(i, enabled) => void setSieveEnabled(i, enabled)}
+      />
     );
   }
 
@@ -299,52 +279,85 @@ function App() {
       );
     }
 
-    if (view.kind === "activity") {
+if (view.kind === "activity") {
       return (
-        <section className="px-6 py-5">
-          <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="text-2xl font-semibold">Activity</h2>
-          {activity.length > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void clearActivity()}
-            >
-              <Trash2 className="size-3.5" /> Clear
-            </Button>
-          )}
-        </div>
-          {activity.length === 0 ? (
-            <Empty className="border-border/70">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Activity className="size-4" />
-                </EmptyMedia>
-                <EmptyTitle>No activity yet</EmptyTitle>
-                <EmptyDescription>
-                  When a sieve processes a file, the result will show up here.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <ul className="divide-y divide-border">
-              {activity
-                .slice()
-                .reverse()
-                .map((entry) => (
-                  <li
-                    key={entry.id}
-                    className={cn(
-                      "select-text py-1.5 font-mono text-xs",
-                      entry.level === "error" && "text-destructive",
-                    )}
-                  >
-                    {entry.message}
-                  </li>
-                ))}
-            </ul>
-          )}
-        </section>
+        <>
+          <section className="px-6 py-5">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="text-2xl font-semibold">Activity</h2>
+              {activity.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setConfirmClear(true)}
+                >
+                  <Trash2 className="size-3.5" /> Clear
+                </Button>
+              )}
+            </div>
+            {activity.length === 0 ? (
+              <Empty className="border-border/70">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Activity className="size-4" />
+                  </EmptyMedia>
+                  <EmptyTitle>No activity yet</EmptyTitle>
+                  <EmptyDescription>
+                    When a sieve processes a file, the result will show up here.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              <ul className="divide-y divide-border">
+                {activity
+                  .slice()
+                  .reverse()
+                  .map((entry) => (
+                    <li
+                      key={entry.id}
+                      className={cn(
+                        "select-text py-1.5 font-mono text-xs",
+                        entry.level === "error" && "text-destructive",
+                      )}
+                    >
+                      {entry.message}
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </section>
+          <AlertDialog
+            open={confirmClear}
+            onOpenChange={(open) => {
+              if (!open) setConfirmClear(false);
+            }}
+          >
+            <AlertDialogContent size="sm">
+              <AlertDialogHeader>
+                <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+                  <Trash2 />
+                </AlertDialogMedia>
+                <AlertDialogTitle>Clear activity?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently remove all activity log entries from the
+                  log file. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel variant="ghost">Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={() => {
+                    setConfirmClear(false);
+                    void clearActivity();
+                  }}
+                >
+                  Clear
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
       );
     }
 

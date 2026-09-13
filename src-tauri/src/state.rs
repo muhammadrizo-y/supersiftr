@@ -128,11 +128,16 @@ impl AppState {
             return;
         }
 
+        let licensed = state.license.lock().unwrap().is_licensed();
+
         for sieve in &sieves {
             if !sieve.applies_to(&path) {
                 continue;
             }
             if !sieve.is_runnable() {
+                continue;
+            }
+            if sieve.uses_pro_features() && !licensed {
                 continue;
             }
             if sieve.matches(&path, &kinds) {

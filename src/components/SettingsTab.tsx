@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { EllipsisVertical, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { EllipsisVertical, Pencil, Plus, Power, Trash2, Undo2 } from "lucide-react";
+
+import { fetchUpdate, installUpdate, type Update } from "@/lib/updater";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,7 +41,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { isValidCompoundSuffix } from "@/lib/sieves";
+import { isValidCompoundExtension } from "@/lib/sieves";
 
 import type { AppConfig, CompoundExtensionsView, ConfigView, Kind, LicenseStore } from "@/types";
 import { KindForm } from "./KindForm";
@@ -47,6 +51,7 @@ function LicenseSection() {
   const [keyInput, setKeyInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
 
   useEffect(() => {
     invoke<LicenseStore>("get_license_status").then(setLicense).catch(() => {});
@@ -82,10 +87,11 @@ function LicenseSection() {
   const isLicensed = license?.status === "active" && license.activation_id !== null;
 
   return (
-    <div className="mb-6 overflow-hidden rounded-lg border border-border">
+    <>
+      <div className="mb-2 overflow-hidden rounded-lg border border-border">
       <div className="flex items-center justify-between gap-4 px-4 py-3">
         <div>
-          <p className="text-sm font-medium">License</p>
+          <p className="text-sm font-medium">Pro</p>
           {isLicensed ? (
             <p className="text-xs leading-relaxed text-muted-foreground">
               Activated on this device
@@ -103,7 +109,12 @@ function LicenseSection() {
       </div>
       <div className="flex items-center gap-2 border-t border-border px-4 py-3">
         {isLicensed ? (
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => void onDeactivate()}>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={busy}
+            onClick={() => setConfirmDeactivate(true)}
+          >
             Deactivate this device
           </Button>
         ) : (
@@ -128,7 +139,39 @@ function LicenseSection() {
       {error && (
         <p className="border-t border-border px-4 py-2 text-xs text-destructive">{error}</p>
       )}
-    </div>
+      </div>
+      <AlertDialog
+        open={confirmDeactivate}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeactivate(false);
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
+              <Power />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Deactivate this device?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This device will be signed out and the license key can be used on
+              another device. You can activate again later if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel variant="ghost">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setConfirmDeactivate(false);
+                void onDeactivate();
+              }}
+            >
+              Deactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -155,12 +198,21 @@ export function SettingsTab({
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [runAtStartup, setRunAtStartup] = useState<boolean | null>(null);
   const [trayEnabled, setTrayEnabled] = useState<boolean | null>(null);
+  const [checkForUpdates, setCheckForUpdates] = useState<boolean | null>(null);
   const [compoundDefaults, setCompoundDefaults] = useState<string[]>([]);
   const [customCompounds, setCustomCompounds] = useState<string[]>([]);
+  const [appVersion, setAppVersion] = useState("");
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => {});
+  }, []);
 
   useEffect(() => {
     invoke<ConfigView>("get_config")
-      .then((v) => setTrayEnabled(v.config.show_in_tray))
+      .then((v) => {
+        setTrayEnabled(v.config.show_in_tray);
+        setCheckForUpdates(v.config.check_for_updates);
+      })
       .catch(() => setTrayEnabled(false));
     invoke<boolean>("get_run_at_startup").then(setRunAtStartup).catch(() => setRunAtStartup(false));
     invoke<CompoundExtensionsView>("get_compound_extensions")
@@ -189,6 +241,15 @@ export function SettingsTab({
     }
   }
 
+  async function onToggleCheckForUpdates(next: boolean) {
+    try {
+      const config = await invoke<AppConfig>("set_check_for_updates", { enabled: next });
+      setCheckForUpdates(config.check_for_updates);
+    } catch {
+      // ignore
+    }
+  }
+
   async function onToggleDateFormat(next: "us" | "uk") {
     try {
       const config = await invoke<AppConfig>("set_date_format", { format: next });
@@ -200,7 +261,7 @@ export function SettingsTab({
 
   const validateCompound = (raw: string) => {
     const s = raw.trim().toLowerCase();
-    return isValidCompoundSuffix(s) && !compoundDefaults.includes(s);
+    return isValidCompoundExtension(s) && !compoundDefaults.includes(s);
   };
 
   async function saveCustomCompounds(custom: string[]) {
@@ -212,11 +273,97 @@ export function SettingsTab({
     }
   }
 
+  const [updateStatus, setUpdateStatus] = useState<
+    "idle" | "checking" | "up-to-date" | "available" | "downloading" | "error"
+  >("idle");
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{
+    downloaded: number;
+    total: number;
+  } | null>(null);
+
+  async function onCheckUpdates() {
+    setUpdateStatus("checking");
+    setPendingUpdate(null);
+    setDownloadProgress(null);
+    try {
+      const update = await fetchUpdate();
+      if (!update) {
+        setUpdateStatus("up-to-date");
+        return;
+      }
+      setPendingUpdate(update);
+      setUpdateStatus("available");
+    } catch {
+      setUpdateStatus("error");
+    }
+  }
+
+  async function onInstallUpdate() {
+    if (!pendingUpdate) return;
+    setUpdateStatus("downloading");
+    try {
+      await installUpdate(pendingUpdate, (downloaded, total) => {
+        setDownloadProgress({ downloaded, total: total ?? 0 });
+      });
+    } catch {
+      setUpdateStatus("error");
+    }
+  }
+
+  function renderUpdateStatus() {
+    switch (updateStatus) {
+      case "checking":
+        return "Checking for updates…";
+      case "up-to-date":
+        return "You're up to date.";
+      case "available":
+        return pendingUpdate
+          ? `Supersiftr v${pendingUpdate.version} is available.`
+          : "Supersiftr v0 is available.";
+      case "downloading":
+        return "Downloading and installing…";
+      case "error":
+        return "Couldn't check for updates.";
+      default:
+        return "";
+    }
+  }
+
+  function renderUpdateButton() {
+    switch (updateStatus) {
+      case "checking":
+        return (
+          <Button size="sm" variant="outline" disabled>
+            Checking…
+          </Button>
+        );
+      case "available":
+        return (
+          <Button size="sm" onClick={() => void onInstallUpdate()}>
+            Download & install
+          </Button>
+        );
+      case "downloading":
+        return (
+          <Button size="sm" disabled>
+            Installing…
+          </Button>
+        );
+      default:
+        return (
+          <Button size="sm" variant="outline" onClick={() => void onCheckUpdates()}>
+            Check for updates
+          </Button>
+        );
+    }
+  }
+
   return (
     <section className="px-6 py-5">
       <h2 className="mb-4 text-2xl font-semibold">Settings</h2>
       <LicenseSection />
-      <div className="mb-6 overflow-hidden rounded-lg border border-border">
+      <div className="mb-2 overflow-hidden rounded-lg border border-border">
         <div className="flex items-center justify-between gap-4 px-4 py-3">
           <div>
             <p className="text-sm font-medium">Run at Startup</p>
@@ -245,10 +392,47 @@ export function SettingsTab({
           />
         </div>
       </div>
+      <div className="mb-2 overflow-hidden rounded-lg border border-border">
+        <div className="flex items-center justify-between gap-4 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Check for Updates</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Automatically check for and notify about new versions of
+              Supersiftr.
+            </p>
+            {renderUpdateStatus() && (
+              <p className="mt-1 text-xs text-muted-foreground">{renderUpdateStatus()}</p>
+            )}
+            {updateStatus === "downloading" &&
+              downloadProgress &&
+              downloadProgress.total > 0 && (
+                <div className="mt-2 h-1 w-40 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-primary"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.round((downloadProgress.downloaded / downloadProgress.total) * 100),
+                      )}%`,
+                    }}
+                  />
+                </div>
+              )}
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            {renderUpdateButton()}
+            <Switch
+              checked={checkForUpdates ?? false}
+              disabled={checkForUpdates === null}
+              onCheckedChange={(next) => void onToggleCheckForUpdates(next)}
+            />
+          </div>
+        </div>
+      </div>
       <div className="mb-6 overflow-hidden rounded-lg border border-border">
         <div className="flex items-center justify-between gap-4 px-4 py-3">
           <div>
-            <p className="text-sm font-medium">Date format</p>
+            <p className="text-sm font-medium">Date Format</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               How dates like <code className="font-mono">01/02/2026</code> and
               natural-language ones ("next Friday") are read: US (month/day) or
@@ -424,6 +608,51 @@ export function SettingsTab({
           placeholder="backup.tar.xz"
           label="compound extensions"
         />
+      </div>
+
+      <div className="mt-8">
+        <h3 className="mb-1 text-lg font-semibold">About</h3>
+        {appVersion && <h4 className="text-sm font-medium">Supersiftr v{appVersion}</h4>}
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          by{" "}
+          <a
+            href="https://github.com/muhammadrizo-y"
+            className="text-primary underline-offset-2 hover:underline"
+            onClick={(e) => {
+              e.preventDefault();
+              void openUrl("https://github.com/muhammadrizo-y");
+            }}
+          >
+            muhammadrizo-y
+          </a>
+        </p>
+        <h4 className="mb-1 mt-4 text-sm font-medium">Links</h4>
+        <ul className="space-y-1 text-xs">
+          <li>
+            <a
+              href="https://supersiftr.vercel.app"
+              className="text-primary underline-offset-2 hover:underline"
+              onClick={(e) => {
+                e.preventDefault();
+                void openUrl("https://supersiftr.vercel.app");
+              }}
+            >
+              Homepage
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://supersiftr.vercel.app/docs"
+              className="text-primary underline-offset-2 hover:underline"
+              onClick={(e) => {
+                e.preventDefault();
+                void openUrl("https://supersiftr.vercel.app/docs");
+              }}
+            >
+              Documentation
+            </a>
+          </li>
+        </ul>
       </div>
 
       <AlertDialog

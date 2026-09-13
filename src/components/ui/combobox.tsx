@@ -53,6 +53,7 @@ export function Combobox({
   label = "select values",
   locked = [],
   validateCustom,
+  preserveCase = false,
 }: {
   options: SelectOption[];
   selected: string[];
@@ -63,6 +64,8 @@ export function Combobox({
   label?: string;
   locked?: string[];
   validateCustom?: (raw: string) => boolean;
+  /** Keep custom values as typed (name patterns are case-sensitive). */
+  preserveCase?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -143,7 +146,7 @@ export function Combobox({
       setOpen(true);
       return;
     }
-    const normalized = allowCustom ? value.trim().toLowerCase() : value.trim();
+    const normalized = allowCustom && !preserveCase ? value.trim().toLowerCase() : value.trim();
     if (normalized && !selected.includes(normalized)) {
       onChange([...selected, normalized]);
     }

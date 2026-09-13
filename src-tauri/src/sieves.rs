@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
 use glob::Pattern;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::config::{config_dir, ConfigError};
@@ -44,9 +45,22 @@ pub struct SieveCondition {
     pub operator: SieveOperator,
     #[serde(default)]
     pub values: Vec<String>,
+    /// Syntax used to interpret `values` for name conditions. Defaults to
+    /// glob so older `sieves.json` files deserialize unchanged.
+    #[serde(default)]
+    pub syntax: MatchSyntax,
 }
 
-/// Whether any configured extension is a suffix of `file_name`, case-
+/// Pattern syntax for name conditions.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MatchSyntax {
+    #[default]
+    Glob,
+    Regex,
+}
+
+/// Whether any configured extension matches the end of `file_name`, case-
 /// insensitively, with at least one character before it. Multi-dot entries
 /// (`tar.gz`) match as a unit (longest tail wins by nature of `ends_with`);
 /// the guard makes `.env`-style dotfiles never match their own name.
@@ -58,7 +72,7 @@ fn extension_set_matches(file_name: &str, exts: &HashSet<String>) -> bool {
     })
 }
 
-/// First enabled kind whose extensions match `file_name`'s suffix,
+/// First enabled kind whose extensions match the end of `file_name`,
 /// case-insensitively. Used by the sort-into-subfolder action to derive the
 /// destination subfolder.
 pub fn matching_kind<'a>(file_name: &str, kinds: &'a [Kind]) -> Option<&'a Kind> {
@@ -130,11 +144,21 @@ impl SieveCondition {
                 if self.values.is_empty() {
                     return false;
                 }
-                let hit = self.values.iter().any(|pattern| {
-                    Pattern::new(pattern)
-                        .map(|pat| pat.matches(file_name))
-                        .unwrap_or(false)
-                });
+                // Case-sensitive by design: a user writing `*.pdf` here
+                // (instead of an extension condition) is deliberately
+                // checking for lowercase. Regex users opt out with `(?i)`.
+                let hit = match self.syntax {
+                    MatchSyntax::Glob => self.values.iter().any(|pattern| {
+                        Pattern::new(pattern)
+                            .map(|pat| pat.matches(file_name))
+                            .unwrap_or(false)
+                    }),
+                    MatchSyntax::Regex => self.values.iter().any(|pattern| {
+                        Regex::new(pattern)
+                            .map(|re| re.is_match(file_name))
+                            .unwrap_or(false)
+                    }),
+                };
                 match self.operator {
                     SieveOperator::Matches => hit,
                     SieveOperator::NotMatches => !hit,
@@ -307,10 +331,25 @@ impl Sieve {
         missing
     }
 
-    /// True if the sieve has at least one condition and one action, i.e. it can
+/// True if the sieve has at least one condition and one action, i.e. it can
     /// actually run. Empty conditions/actions mean the sieve is inert.
     pub fn is_runnable(&self) -> bool {
         !self.conditions.is_empty() && !self.actions.is_empty()
+    }
+
+    /// True if the sieve needs a Pro license: regex name matching or
+    /// sort-into/compress/extract actions. Free licenses skip these sieves.
+    pub fn uses_pro_features(&self) -> bool {
+        self.conditions.iter().any(|c| {
+            c.property == SieveProperty::Name && c.syntax == MatchSyntax::Regex
+        }) || self.actions.iter().any(|a| {
+            matches!(
+                a,
+                RuleAction::SortInto { .. }
+                    | RuleAction::Compress { .. }
+                    | RuleAction::Extract { .. }
+            )
+        })
     }
 
     pub fn matches(&self, path: &Path, kinds: &[Kind]) -> bool {
@@ -400,6 +439,7 @@ mod tests {
             property: SieveProperty::Kind,
             operator,
             values,
+            syntax: MatchSyntax::Glob,
         }
     }
 
@@ -408,6 +448,7 @@ mod tests {
             property: SieveProperty::Name,
             operator,
             values,
+            syntax: MatchSyntax::Glob,
         }
     }
 
@@ -416,6 +457,7 @@ mod tests {
             property: SieveProperty::Type,
             operator: SieveOperator::Is,
             values: vec![value.into()],
+            syntax: MatchSyntax::Glob,
         }
     }
 
@@ -449,6 +491,7 @@ mod tests {
                 property: SieveProperty::Extension,
                 operator: SieveOperator::Is,
                 values: vec!["pdf".into()],
+            syntax: MatchSyntax::Glob,
             }],
             Vec::new(),
         );
@@ -458,6 +501,7 @@ mod tests {
                 property: SieveProperty::Extension,
                 operator: SieveOperator::IsNot,
                 values: vec!["pdf".into()],
+            syntax: MatchSyntax::Glob,
             }],
             Vec::new(),
         );
@@ -479,6 +523,7 @@ mod tests {
                 property: SieveProperty::Extension,
                 operator: SieveOperator::Is,
                 values: vec!["pdf".into()],
+            syntax: MatchSyntax::Glob,
             }],
             Vec::new(),
         );
@@ -493,6 +538,7 @@ mod tests {
                 property: SieveProperty::Extension,
                 operator: SieveOperator::IsNot,
                 values: vec!["pdf".into()],
+            syntax: MatchSyntax::Glob,
             }],
             Vec::new(),
         );
@@ -523,6 +569,7 @@ mod tests {
                 property: SieveProperty::Extension,
                 operator: SieveOperator::Is,
                 values: vec!["tar.gz".into()],
+            syntax: MatchSyntax::Glob,
             }],
             Vec::new(),
         );
@@ -537,6 +584,7 @@ mod tests {
                 property: SieveProperty::Extension,
                 operator: SieveOperator::Is,
                 values: vec!["tar.gz".into()],
+            syntax: MatchSyntax::Glob,
             }],
             Vec::new(),
         );
@@ -551,6 +599,122 @@ mod tests {
         );
         assert!(s.matches(Path::new("invoice_001.pdf"), &[]));
         assert!(!s.matches(Path::new("receipt_001.pdf"), &[]));
+    }
+
+    #[test]
+    fn matches_name_regex() {
+        let s = sieve(
+            vec![SieveCondition {
+                property: SieveProperty::Name,
+                operator: SieveOperator::Matches,
+                values: vec!["^report_\\d{4}\\.pdf$".into()],
+                syntax: MatchSyntax::Regex,
+            }],
+            Vec::new(),
+        );
+        assert!(s.matches(Path::new("report_2024.pdf"), &[]));
+        assert!(!s.matches(Path::new("report_20.pdf"), &[]));
+        assert!(!s.matches(Path::new("Report_2024.pdf"), &[]));
+    }
+
+    #[test]
+    fn matches_name_regex_not_matches() {
+        let s = sieve(
+            vec![SieveCondition {
+                property: SieveProperty::Name,
+                operator: SieveOperator::NotMatches,
+                values: vec!["^invoice".into()],
+                syntax: MatchSyntax::Regex,
+            }],
+            Vec::new(),
+        );
+        assert!(s.matches(Path::new("receipt.txt"), &[]));
+        assert!(!s.matches(Path::new("invoice_1.txt"), &[]));
+    }
+
+    #[test]
+    fn invalid_regex_never_matches() {
+        let s = sieve(
+            vec![SieveCondition {
+                property: SieveProperty::Name,
+                operator: SieveOperator::Matches,
+                values: vec!["(unclosed".into()],
+                syntax: MatchSyntax::Regex,
+            }],
+            Vec::new(),
+        );
+        assert!(!s.matches(Path::new("(unclosed"), &[]));
+        let not_s = sieve(
+            vec![SieveCondition {
+                property: SieveProperty::Name,
+                operator: SieveOperator::NotMatches,
+                values: vec!["(unclosed".into()],
+                syntax: MatchSyntax::Regex,
+            }],
+            Vec::new(),
+        );
+        // Invalid pattern matches nothing, so `not_matches` matches everything.
+        assert!(not_s.matches(Path::new("anything.txt"), &[]));
+    }
+
+#[test]
+    fn regex_syntax_defaults_to_glob_on_deserialize() {
+        let json = r#"{"property":"name","operator":"matches","values":["*.pdf"]}"#;
+        let c: SieveCondition = serde_json::from_str(json).unwrap();
+        assert_eq!(c.syntax, MatchSyntax::Glob);
+    }
+
+    #[test]
+    fn uses_pro_features_detects_regex_and_pro_actions() {
+        let name_regex = SieveCondition {
+            property: SieveProperty::Name,
+            operator: SieveOperator::Matches,
+            values: vec!["^report".into()],
+            syntax: MatchSyntax::Regex,
+        };
+        let name_glob = SieveCondition {
+            property: SieveProperty::Name,
+            operator: SieveOperator::Matches,
+            values: vec!["*report*".into()],
+            syntax: MatchSyntax::Glob,
+        };
+        let free = sieve(
+            vec![name_glob.clone(), type_condition("file")],
+            vec![RuleAction::Move {
+                folder: "C:/Target".into(),
+            }],
+        );
+        assert!(!free.uses_pro_features());
+        let regex_sieve = sieve(
+            vec![name_regex.clone(), type_condition("file")],
+            vec![RuleAction::Move {
+                folder: "C:/Target".into(),
+            }],
+        );
+        assert!(regex_sieve.uses_pro_features());
+        let sort_sieve = sieve(
+            vec![name_glob.clone()],
+            vec![RuleAction::SortInto {
+                folder: "C:/Target".into(),
+                by: SortKey::Extension,
+            }],
+        );
+        assert!(sort_sieve.uses_pro_features());
+        let compress_sieve = sieve(
+            vec![name_glob.clone()],
+            vec![RuleAction::Compress {
+                format: ArchiveFormat::Zip,
+                source: ExtractSourceMode::Keep,
+            }],
+        );
+        assert!(compress_sieve.uses_pro_features());
+        let extract_sieve = sieve(
+            vec![name_glob],
+            vec![RuleAction::Extract {
+                source: ExtractSourceMode::Keep,
+            }],
+        );
+        assert!(extract_sieve.uses_pro_features());
     }
 
     #[test]
@@ -616,6 +780,7 @@ mod tests {
                 property: SieveProperty::Extension,
                 operator: SieveOperator::Is,
                 values: vec!["pdf".into()],
+            syntax: MatchSyntax::Glob,
             }],
             Vec::new(),
         );
@@ -649,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn matching_kind_skips_disabled_and_requires_suffix() {
+    fn matching_kind_skips_disabled_and_requires_extension() {
         let kinds = vec![kind("movie", &["mp4"])];
         assert_eq!(
             matching_kind("clip.mp4", &kinds).map(|k| k.name.as_str()),
