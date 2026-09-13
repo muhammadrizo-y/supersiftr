@@ -1,6 +1,6 @@
 [package]
 name = "supersiftr"
-version = "0.1.0"
+version = "0.1.1"
 description = "Supersiftr - File Automation Utility"
 authors = ["muhammadrizo_y"]
 edition = "2021"
