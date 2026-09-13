@@ -486,7 +486,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec![]),
+            Some(vec!["--autostart"]),
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
@@ -496,6 +496,9 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 apply_theme_background(&window);
                 attach_close_behavior(&window);
+                if std::env::args().any(|arg| arg == "--autostart") {
+                    let _ = window.minimize();
+                }
             }
             {
                 let state = app.state::<AppState>();
