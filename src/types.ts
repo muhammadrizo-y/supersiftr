@@ -29,10 +29,13 @@ export type ConditionOperator =
   | "after"
   | "before";
 
+export type MatchSyntax = "glob" | "regex";
+
 export type SieveCondition = {
   property: ConditionProperty;
   operator: ConditionOperator;
   values: string[];
+  syntax?: MatchSyntax;
 };
 
 export type Sieve = {
@@ -58,6 +61,7 @@ export type AppConfig = {
   schema_version: number;
   show_in_tray: boolean;
   date_format: DateFormat;
+  check_for_updates: boolean;
 };
 
 export type ConfigView = {

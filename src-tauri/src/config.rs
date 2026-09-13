@@ -22,6 +22,7 @@ pub struct AppConfig {
     pub show_in_tray: bool,
     pub date_format: DateFormat,
     pub compound_extensions: Vec<String>,
+    pub check_for_updates: bool,
 }
 
 impl Default for AppConfig {
@@ -31,6 +32,7 @@ impl Default for AppConfig {
             show_in_tray: true,
             date_format: DateFormat::Uk,
             compound_extensions: Vec::new(),
+            check_for_updates: true,
         }
     }
 }

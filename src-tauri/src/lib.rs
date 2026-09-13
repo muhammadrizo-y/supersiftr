@@ -6,7 +6,7 @@ pub mod license;
 pub mod logging;
 pub mod sieves;
 pub mod state;
-pub mod suffix;
+pub mod compound_extensions;
 pub mod watcher;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -77,6 +77,15 @@ fn set_date_format(format: DateFormat, app: tauri::AppHandle) -> Result<AppConfi
     Ok(config.clone())
 }
 
+#[tauri::command]
+fn set_check_for_updates(enabled: bool, app: tauri::AppHandle) -> Result<AppConfig, String> {
+    let state = app.state::<AppState>();
+    let mut config = state.config.lock().unwrap();
+    config.check_for_updates = enabled;
+    config::save(&config).map_err(|e| e.to_string())?;
+    Ok(config.clone())
+}
+
 #[derive(serde::Serialize)]
 struct CompoundExtensionsView {
     defaults: Vec<String>,
@@ -86,7 +95,7 @@ struct CompoundExtensionsView {
 #[tauri::command]
 fn get_compound_extensions(state: State<'_, AppState>) -> CompoundExtensionsView {
     CompoundExtensionsView {
-        defaults: suffix::DEFAULT_SUFFIXES.iter().map(|s| s.to_string()).collect(),
+        defaults: compound_extensions::DEFAULT_COMPOUND_EXTENSIONS.iter().map(|s| s.to_string()).collect(),
         custom: state.config.lock().unwrap().compound_extensions.clone(),
     }
 }
@@ -100,7 +109,7 @@ fn set_compound_extensions(
     let mut config = state.config.lock().unwrap();
     let mut cleaned: Vec<String> = Vec::new();
     for s in custom {
-        let Some(normalized) = suffix::normalize_custom_suffix(&s, &cleaned) else {
+        let Some(normalized) = compound_extensions::normalize_custom_extension(&s, &cleaned) else {
             continue;
         };
         cleaned.push(normalized);
@@ -399,6 +408,7 @@ async fn activate_license(key: String, app: tauri::AppHandle) -> Result<LicenseS
     let activated = license::activate(&key).await.map_err(|e| e.to_string())?;
     let state = app.state::<AppState>();
     *state.license.lock().unwrap() = activated.clone();
+    let _ = app.emit("license-changed", &activated);
     Ok(activated)
 }
 
@@ -411,6 +421,7 @@ async fn refresh_license(app: tauri::AppHandle) -> Result<LicenseStore, String> 
     let refreshed = license::refresh(current).await.map_err(|e| e.to_string())?;
     let state = app.state::<AppState>();
     *state.license.lock().unwrap() = refreshed.clone();
+    let _ = app.emit("license-changed", &refreshed);
     Ok(refreshed)
 }
 
@@ -420,6 +431,7 @@ async fn deactivate_license(app: tauri::AppHandle) -> Result<LicenseStore, Strin
     let cleared = license::deactivate(current).await.map_err(|e| e.to_string())?;
     let state = app.state::<AppState>();
     *state.license.lock().unwrap() = cleared.clone();
+    let _ = app.emit("license-changed", &cleared);
     Ok(cleared)
 }
 
@@ -476,6 +488,8 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![]),
         ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState::new())
         .setup(|app| {
             AppState::restart_watchers(app.handle()).map_err(|e| format!("setup: {e}"))?;
@@ -510,6 +524,7 @@ pub fn run() {
             get_run_at_startup,
             set_run_at_startup,
             set_date_format,
+            set_check_for_updates,
             get_compound_extensions,
             set_compound_extensions,
             get_sieves,

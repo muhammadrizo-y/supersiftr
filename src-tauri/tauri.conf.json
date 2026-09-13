@@ -31,12 +31,24 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJFOTA5RTg5NEJCNDUwMjIKUldRaVVMUkxpWjZRdnJ2ZStrZHdha1psaFdMUjM5aE11RVpNc0taVGZKV3VjSDlzTFNJOXZDR0YK",
+      "endpoints": [
+        "https://github.com/muhammadrizo-y/supersiftr/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
