@@ -2,11 +2,11 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-/// Known compound filename suffixes that a rename should preserve as a unit.
-/// A suffix is the complete meaningful ending of a filename (e.g. `tar.gz`),
-/// whereas an extension is only its final component (`gz`). Longest match wins
-/// so that `tar.gz` beats `gz`.
-pub const DEFAULT_SUFFIXES: &[&str] = &[
+/// Known compound filename extensions that a rename should preserve as a unit.
+/// A compound extension is the complete meaningful ending of a filename
+/// (e.g. `tar.gz`) rather than only its final component (`gz`). Longest match
+/// wins so that `tar.gz` beats `gz`.
+pub const DEFAULT_COMPOUND_EXTENSIONS: &[&str] = &[
     "tar.gz",
     "tar.bz2",
     "tar.xz",
@@ -17,23 +17,23 @@ pub const DEFAULT_SUFFIXES: &[&str] = &[
     "min.js",
 ];
 
-fn suffix_regex() -> &'static Regex {
+fn compound_extension_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9]+(?:\.[a-zA-Z0-9]+)+$").expect("valid regex"))
 }
 
-/// Splits a filename into its basename and suffix at the first slice of the
-/// longest configured suffix that the name ends with (case-insensitively).
+/// Splits a filename into its basename and extension at the first slice of the
+/// longest configured extension that the name ends with (case-insensitively).
 /// Falls back to the final dot extension when nothing matches; a dotfile
-/// (`.bashrc`) has no suffix.
+/// (`.bashrc`) has no extension.
 ///
-/// `custom` is the user-supplied suffix list; the built-in defaults are always
+/// `custom` is the user-supplied extension list; the built-in defaults are always
 /// considered first. Entries may carry a leading dot (legacy data) or not.
-/// Returns `(basename, suffix)` where `basename + suffix == file_name`.
+/// Returns `(basename, extension)` where `basename + extension == file_name`.
 pub fn split<'a>(file_name: &'a str, custom: &[String]) -> (&'a str, &'a str) {
     let lowercase = file_name.to_ascii_lowercase();
     let mut best_len = 0usize;
-    for s in DEFAULT_SUFFIXES
+    for s in DEFAULT_COMPOUND_EXTENSIONS
         .iter()
         .copied()
         .chain(custom.iter().map(String::as_str))
@@ -58,16 +58,16 @@ pub fn split<'a>(file_name: &'a str, custom: &[String]) -> (&'a str, &'a str) {
     }
 }
 
-/// Normalizes a user-entered suffix: trims and lowercases, then requires the
-/// compound shape `part.part` (at least two dot-separated alphanumeric
-/// segments). Returns `None` for blanks, malformed values, duplicates, and
-/// values already covered by the built-in defaults.
-pub fn normalize_custom_suffix(input: &str, existing: &[String]) -> Option<String> {
+/// Normalizes a user-entered compound extension: trims and lowercases, then
+/// requires the compound shape `part.part` (at least two dot-separated
+/// alphanumeric segments). Returns `None` for blanks, malformed values,
+/// duplicates, and values already covered by the built-in defaults.
+pub fn normalize_custom_extension(input: &str, existing: &[String]) -> Option<String> {
     let s = input.trim().to_ascii_lowercase();
-    if !suffix_regex().is_match(&s) {
+    if !compound_extension_regex().is_match(&s) {
         return None;
     }
-    if DEFAULT_SUFFIXES.contains(&s.as_str()) || existing.iter().any(|e| e == &s) {
+    if DEFAULT_COMPOUND_EXTENSIONS.contains(&s.as_str()) || existing.iter().any(|e| e == &s) {
         return None;
     }
     Some(s)
@@ -118,12 +118,12 @@ mod tests {
     }
 
     #[test]
-    fn dotfile_has_no_suffix() {
+    fn dotfile_has_no_extension() {
         assert_eq!(split(".bashrc", &[]), (".bashrc", ""));
     }
 
     #[test]
-    fn no_extension_no_suffix() {
+    fn no_extension() {
         assert_eq!(split("README", &[]), ("README", ""));
     }
 
@@ -156,26 +156,26 @@ mod tests {
 
     #[test]
     fn normalize_accepts_compound_and_lowercases() {
-        assert_eq!(normalize_custom_suffix("notes.backup", &[]), Some("notes.backup".into()));
-        assert_eq!(normalize_custom_suffix("TAR.GZ", &[]), None); // built-in default
-        assert_eq!(normalize_custom_suffix("backup.TAR.xz", &[]), Some("backup.tar.xz".into()));
-        assert_eq!(normalize_custom_suffix("a.b", &[]), Some("a.b".into()));
+        assert_eq!(normalize_custom_extension("notes.backup", &[]), Some("notes.backup".into()));
+        assert_eq!(normalize_custom_extension("TAR.GZ", &[]), None); // built-in default
+        assert_eq!(normalize_custom_extension("backup.TAR.xz", &[]), Some("backup.tar.xz".into()));
+        assert_eq!(normalize_custom_extension("a.b", &[]), Some("a.b".into()));
     }
 
     #[test]
     fn normalize_rejects_malformed() {
-        assert_eq!(normalize_custom_suffix(".tar.gz", &[]), None); // leading dot
-        assert_eq!(normalize_custom_suffix("gz", &[]), None); // single part
-        assert_eq!(normalize_custom_suffix("a..b", &[]), None); // empty part
-        assert_eq!(normalize_custom_suffix("a b.c", &[]), None); // space
-        assert_eq!(normalize_custom_suffix("", &[]), None);
-        assert_eq!(normalize_custom_suffix("  ", &[]), None);
+        assert_eq!(normalize_custom_extension(".tar.gz", &[]), None); // leading dot
+        assert_eq!(normalize_custom_extension("gz", &[]), None); // single part
+        assert_eq!(normalize_custom_extension("a..b", &[]), None); // empty part
+        assert_eq!(normalize_custom_extension("a b.c", &[]), None); // space
+        assert_eq!(normalize_custom_extension("", &[]), None);
+        assert_eq!(normalize_custom_extension("  ", &[]), None);
     }
 
     #[test]
     fn normalize_rejects_duplicates_and_defaults() {
-        assert_eq!(normalize_custom_suffix("a.b", &custom(&["a.b"])), None);
-        assert_eq!(normalize_custom_suffix("A.B", &custom(&["a.b"])), None);
-        assert_eq!(normalize_custom_suffix("d.ts", &[]), None); // built-in default
+        assert_eq!(normalize_custom_extension("a.b", &custom(&["a.b"])), None);
+        assert_eq!(normalize_custom_extension("A.B", &custom(&["a.b"])), None);
+        assert_eq!(normalize_custom_extension("d.ts", &[]), None); // built-in default
     }
 }

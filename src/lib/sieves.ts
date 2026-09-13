@@ -1,7 +1,7 @@
 import { format, parseISO } from "date-fns";
 import type { ExtractSourceMode, Kind, RuleAction, Sieve, SieveCondition } from "@/types";
 
-function readableDate(value: string): string {
+export function readableDate(value: string): string {
   const date = parseISO(value);
   if (Number.isNaN(date.getTime())) return value;
   return format(date, "MMMM d, yyyy");
@@ -40,7 +40,7 @@ export function isValidExtension(raw: string): boolean {
   return s !== "" && EXTENSION_PATTERN.test(s);
 }
 
-export function isValidCompoundSuffix(raw: string): boolean {
+export function isValidCompoundExtension(raw: string): boolean {
   const s = raw.trim().toLowerCase();
   return EXTENSION_PATTERN.test(s) && s.includes(".");
 }
@@ -57,6 +57,17 @@ export function missingKinds(sieve: Sieve, kinds: Kind[]): string[] {
     }
   }
   return Array.from(set);
+}
+
+/// True if the sieve uses Pro-only features (regex matching or
+/// sort-into/compress/extract actions). Mirrors `Sieve::uses_pro_features`.
+export function hasProFeatures(sieve: Sieve): boolean {
+  return (
+    sieve.conditions.some((c) => c.property === "name" && c.syntax === "regex") ||
+    sieve.actions.some(
+      (a) => a.type === "sort_into" || a.type === "compress" || a.type === "extract",
+    )
+  );
 }
 
 /// Mirrors `Sieve::is_runnable` in src-tauri/src/sieves.rs — keep in sync if
@@ -82,6 +93,21 @@ function describeCondition(c: SieveCondition, kinds: Kind[]): string {
   }
     case "type":
       return c.values[0] === "folder" ? "Type is a Folder" : "Type is a File";
+  }
+}
+
+/// Validates a regex the way the Rust `regex` crate would: JS accepts
+/// backreferences and lookarounds that Rust rejects, so those constructs are
+/// refused here to keep frontend validation in sync with backend matching.
+export function isValidRustRegex(pattern: string): boolean {
+  if (/\\[1-9]/.test(pattern)) return false; // backreferences
+  if (/\(\?<?[=!]/.test(pattern)) return false; // lookarounds
+  try {
+    // eslint-disable-next-line no-new
+    new RegExp(pattern);
+    return true;
+  } catch {
+    return false;
   }
 }
 

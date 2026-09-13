@@ -203,7 +203,7 @@ pub fn slugify(input: &str) -> Option<String> {
 }
 
 /// Return a unique id derived from `base`, appending `-2`, `-3`, … when the
-/// base (or a previous suffix) is already taken by an existing kind.
+/// base (or a previous candidate) is already taken by an existing kind.
 pub fn unique_name(base: &str, existing: &[Kind]) -> String {
     if !existing.iter().any(|k| k.name == base) {
         return base.to_string();

@@ -8,7 +8,7 @@ use thiserror::Error;
 use crate::archive;
 use crate::kinds::Kind;
 use crate::sieves::{DeleteMode, ExtractSourceMode, RuleAction, SortKey};
-use crate::suffix;
+use crate::compound_extensions;
 
 const MAX_RETRIES: u32 = 5;
 const RETRY_DELAY: Duration = Duration::from_millis(200);
@@ -56,7 +56,7 @@ impl serde::Serialize for ActionError {
 pub fn execute(
     source: &Path,
     action: &RuleAction,
-    custom_suffixes: &[String],
+    custom_extensions: &[String],
     kinds: &[Kind],
 ) -> Result<PathBuf, ActionError> {
     if !source.exists() {
@@ -81,12 +81,12 @@ pub fn execute(
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
-            let (base_name, suffix_str) = suffix::split(&file_name, custom_suffixes);
-            // `{name}` interpolates the original base name (suffix stripped) so
-            // a template like "{name}_backup" keeps the file distinct; a plain
-            // literal stays a full name replacement.
+            let (base_name, extension) = compound_extensions::split(&file_name, custom_extensions);
+            // `{name}` interpolates the original base name (extension stripped)
+            // so a template like "{name}_backup" keeps the file distinct; a
+            // plain literal stays a full name replacement.
             let resolved_name = name.replace("{name}", &base_name);
-            let new_name = format!("{resolved_name}{suffix_str}");
+            let new_name = format!("{resolved_name}{extension}");
             let dest = source.with_file_name(&new_name);
             retry(|| fs::rename(source, &dest))?;
             Ok(dest)
@@ -98,8 +98,8 @@ pub fn execute(
                 .unwrap_or_default();
             let key = match by {
                 SortKey::Extension => {
-                    let (_, suffix_str) = suffix::split(&file_name, custom_suffixes);
-                    let ext = suffix_str.trim_start_matches('.');
+                    let (_, extension) = compound_extensions::split(&file_name, custom_extensions);
+                    let ext = extension.trim_start_matches('.');
                     if ext.is_empty() {
                         MISC_FOLDER.to_string()
                     } else {
@@ -125,7 +125,7 @@ pub fn execute(
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
-            let (base, _) = suffix::split(&file_name, custom_suffixes);
+            let (base, _) = compound_extensions::split(&file_name, custom_extensions);
             let dest = source.with_file_name(format!("{base}.{format}"));
             archive::compress(source, &dest)?;
             match source_mode {
@@ -308,7 +308,7 @@ mod tests {
         fs::write(&src, "hello").unwrap();
 
         let result = execute(&src, &RuleAction::Rename { name: "album".into() }, &[], &[]);
-        // .tar.gz is a recognized compound suffix, so the full suffix is kept.
+        // .tar.gz is a recognized compound extension, so the full extension is kept.
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("album.tar.gz"));
         assert!(dir.join("album.tar.gz").exists());
@@ -366,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn rename_prefix_keeps_compound_suffix() {
+    fn rename_prefix_keeps_compound_extension() {
         let dir = temp_dir("rename_prefix");
         let src = dir.join("photo.tar.gz");
         fs::write(&src, "hello").unwrap();
@@ -378,7 +378,7 @@ mod tests {
     }
 
     #[test]
-    fn rename_preserves_custom_compound_suffix() {
+    fn rename_preserves_custom_compound_extension() {
         let dir = temp_dir("rename_custom");
         let src = dir.join("index.test.ts");
         fs::write(&src, "hello").unwrap();
@@ -395,7 +395,7 @@ mod tests {
         let src = dir.join("report.final.pdf");
         fs::write(&src, "hello").unwrap();
 
-        // .pdf is the only recognized suffix here; .final is part of the name.
+        // .pdf is the only recognized extension here; .final is part of the name.
         let result = execute(&src, &RuleAction::Rename { name: "final".into() }, &[], &[]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), dir.join("final.pdf"));
@@ -627,7 +627,7 @@ mod tests {
     }
 
     #[test]
-    fn compress_tar_gz_strips_compound_suffix() {
+    fn compress_tar_gz_strips_compound_extension() {
         let dir = temp_dir("compress_tgz");
         let src = dir.join("backup.tar");
         fs::write(&src, "hello").unwrap();
