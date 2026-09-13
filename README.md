@@ -8,7 +8,7 @@
   <a href="https://supersiftr.vercel.app">Website</a> ·
   <a href="https://supersiftr.vercel.app/download">Download</a> ·
   <a href="https://supersiftr.vercel.app/docs">Docs</a> ·
-  <a href="https://supersiftr.vercel.app/pricing">Pricing</a>
+  <a href="https://supersiftr.vercel.app#pricing">Pricing</a>
 </p>
 
 <!-- landing cover -->
