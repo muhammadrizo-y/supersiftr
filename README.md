@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src-tauri\icons\icon.png" width="64" alt="">
+  <img src="src-tauri/icons/icon.png" width="64" alt="">
 </p>
 
 <h1 align="center">Supersiftr</h1>
@@ -11,8 +11,7 @@
   <a href="https://supersiftr.vercel.app#pricing">Pricing</a>
 </p>
 
-<!-- landing cover -->
-<!-- <img src=""> -->
+<img src="public/screenshot.png" alt="">
 
 Supersiftr is the open-source Windows alternative to Hazel on macOS. It watches
 your folders and sorts files automatically the moment they appear — no scripts,
@@ -54,7 +53,7 @@ these folders, run these actions, in order.*
 - **Conditions** — each condition checks one property of a file:
   - **Kind** — matches a named group of extensions (see Kinds below).
   - **Extension** — matches specific extensions, e.g. `pdf`.
-  - **Name** — matches the file name with glob patterns, e.g. `invoice*`.
+  - **Name** — matches the file name with glob patterns, e.g. `invoice*` or regex.
   - **Date modified** — matches files modified before or after a date.
   - **Type** — matches whether the entry is a file or a folder.
   - Operators include *is / is not* and *matches / does not match*, and the
@@ -64,6 +63,9 @@ these folders, run these actions, in order.*
   - **Rename** using a pattern with the original name, extension, and date
     placeholders.
   - **Delete**, to the Recycle Bin or permanently.
+  - **Sort into Subfolder**, by Kind or Extension.
+  - **Compress** into `zip` or `tar.gz`, etc.
+  - **Extract** `zip` or `tar.gz`, etc. files
 
 Sieves can be enabled or disabled individually, and every match is recorded in
 the activity log so you can always see what moved where, and why.
@@ -78,11 +80,12 @@ the defaults. Renaming a kind updates every sieve that references it.
 
 ### Settings
 
-- **License** — activate your Pro key to unlock paid features on this device.
+- **Pro** — activate your Pro key to unlock paid features on this device.
   Keys can be deactivated to free a seat for another machine.
 - **Run at Startup** — launch Supersiftr automatically when you sign in.
 - **Show in System Tray** — keep a tray icon so you can open or quit
   Supersiftr without a taskbar window.
+- **Check for Updates** — automatically check for app updates.
 - **Date format** — how dates like `01/02/2026` and natural-language ones
   ("next Friday") are read: US (month/day) or UK (day/month).
 - **Kinds** — manage kinds and compound extensions (endings like `.tar.gz`
