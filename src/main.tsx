@@ -19,6 +19,8 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   </React.StrictMode>,
 );
 
-getCurrentWebviewWindow()
-  .show()
-  .catch(() => {});
+void invoke<boolean>("is_autostart_launch").then((autostart) => {
+  if (!autostart) {
+    getCurrentWebviewWindow().show().catch(() => {});
+  }
+});

@@ -69,6 +69,11 @@ fn set_run_at_startup(enabled: bool, app: tauri::AppHandle) -> Result<bool, Stri
 }
 
 #[tauri::command]
+fn is_autostart_launch() -> bool {
+    std::env::args().any(|arg| arg == "--autostart")
+}
+
+#[tauri::command]
 fn set_date_format(format: DateFormat, app: tauri::AppHandle) -> Result<AppConfig, String> {
     let state = app.state::<AppState>();
     let mut config = state.config.lock().unwrap();
@@ -496,8 +501,10 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 apply_theme_background(&window);
                 attach_close_behavior(&window);
-                if std::env::args().any(|arg| arg == "--autostart") {
-                    let _ = window.minimize();
+                if std::env::args().any(|arg| arg == "--autostart")
+                    && !app.state::<AppState>().config.lock().unwrap().show_in_tray
+                {
+                    let _ = window.show();
                 }
             }
             {
@@ -526,6 +533,7 @@ pub fn run() {
             set_show_in_tray,
             get_run_at_startup,
             set_run_at_startup,
+            is_autostart_launch,
             set_date_format,
             set_check_for_updates,
             get_compound_extensions,
