@@ -43,3 +43,8 @@ flate2 = "1"
 bzip2 = "0.6"
 xz2 = "0.1"
 
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+
