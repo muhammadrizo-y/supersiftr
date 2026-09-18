@@ -180,12 +180,7 @@ fn build_tray(app: &tauri::AppHandle) -> Result<tauri::tray::TrayIcon, String> {
                 ..
             } = event
             {
-                let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.unminimize();
-                    let _ = window.set_focus();
-                }
+                show_main_window(tray.app_handle());
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -202,10 +197,43 @@ fn build_tray(app: &tauri::AppHandle) -> Result<tauri::tray::TrayIcon, String> {
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
+    if app.get_webview_window("main").is_none() {
+        ensure_main_window(app);
+        return;
+    }
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+fn ensure_main_window(app: &tauri::AppHandle) {
+    let window_config = match app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+    {
+        Some(config) => config,
+        None => return,
+    };
+    if let Ok(builder) = tauri::WebviewWindowBuilder::from_config(app, &window_config) {
+        if let Ok(window) = builder.build() {
+            apply_theme_background(&window);
+            attach_close_behavior(&window);
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+}
+
+#[tauri::command]
+fn close_main_window(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.destroy();
     }
 }
 
@@ -216,7 +244,7 @@ fn attach_close_behavior(window: &tauri::WebviewWindow) {
             let state = handle.state::<AppState>();
             if state.config.lock().unwrap().show_in_tray {
                 api.prevent_close();
-                let _ = handle.hide();
+                let _ = handle.destroy();
             }
         }
     });
@@ -556,8 +584,18 @@ pub fn run() {
             get_license_status,
             activate_license,
             refresh_license,
-            deactivate_license
+            deactivate_license,
+            close_main_window
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app: &tauri::AppHandle, event: tauri::RunEvent| {
+            if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
+                if app.get_webview_window("main").is_none()
+                    && app.state::<AppState>().config.lock().unwrap().show_in_tray
+                {
+                    api.prevent_exit();
+                }
+            }
+        });
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 
 import closeIcon from "@/assets/close.svg?raw";
 import maximizeIcon from "@/assets/maximize.svg?raw";
@@ -73,7 +74,7 @@ export function WindowControls() {
         type="button"
         tabIndex={-1}
         title="Close"
-        onClick={() => appWindow.close()}
+        onClick={() => invoke("close_main_window")}
         className="flex w-11 cursor-pointer items-center justify-center text-foreground/80 transition-colors hover:bg-[#c42b1c] hover:text-white"
       >
         <FluentIcon svg={closeIcon} className="size-3.5" />
