@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Activity, Trash2 } from "lucide-react";
@@ -36,6 +36,24 @@ import { useProStatus } from "@/lib/license";
 import { cn } from "@/lib/utils";
 import type { ActivityEntry, ConfigView, Kind, Sieve, View } from "@/types";
 
+function readView(): View | null {
+  try {
+    const raw = localStorage.getItem("supersiftr.view");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.kind !== "string") return null;
+    if (parsed.kind === "new" || parsed.kind === "activity" || parsed.kind === "settings") {
+      return parsed as View;
+    }
+    if (parsed.kind === "sieve" || parsed.kind === "edit") {
+      return { kind: parsed.kind, index: typeof parsed.index === "number" ? parsed.index : 0 };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function detectDateFormat(): "us" | "uk" {
   try {
     const region =
@@ -52,7 +70,9 @@ function App() {
   const [sieves, setSieves] = useState<Sieve[]>([]);
   const [kinds, setKinds] = useState<Kind[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
-  const [view, setView] = useState<View>({ kind: "new" });
+  const restored = useMemo(readView, []);
+  const [view, setView] = useState<View>(restored ?? { kind: "new" });
+  const [booted, setBooted] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [dateFormat, setDateFormat] = useState<"us" | "uk">("uk");
   const [checkForUpdates, setCheckForUpdates] = useState(false);
@@ -76,11 +96,16 @@ function App() {
   }, []);
 
   useEffect(() => {
-    invoke<Sieve[]>("get_sieves").then((sieves) => {
-      setSieves(sieves);
-      setView(sieves.length ? { kind: "sieve", index: 0 } : { kind: "new" });
-    });
-    invoke<Kind[]>("get_kinds").then(setKinds);
+    void Promise.all([invoke<Sieve[]>("get_sieves"), invoke<Kind[]>("get_kinds")]).then(
+      ([sieves, kinds]) => {
+        setSieves(sieves);
+        setKinds(kinds);
+        if (!restored) {
+          setView(sieves.length ? { kind: "sieve", index: 0 } : { kind: "new" });
+        }
+        setBooted(true);
+      },
+    );
     invoke<{ level: string; message: string }[]>("get_logs", { count: 200 }).then((logs) =>
       setActivity(logs.map((l) => ({ id: nextId.current++, message: l.message, level: l.level === "error" ? "error" : "info" }))),
     );
@@ -102,7 +127,21 @@ function App() {
       unlistenLog.then((f) => f());
       unlistenSettings.then((f) => f());
     };
-  }, [log]);
+  }, [log, restored]);
+
+  useEffect(() => {
+    if (sieves.length === 0) return;
+    if (view.kind === "sieve" || view.kind === "edit") {
+      if (view.index >= sieves.length) {
+        setView({ kind: "sieve", index: Math.min(view.index, sieves.length - 1) });
+      }
+    }
+  }, [sieves, view]);
+
+  useEffect(() => {
+    if (sieves.length === 0) return;
+    localStorage.setItem("supersiftr.view", JSON.stringify(view));
+  }, [view, sieves.length]);
 
   useEffect(() => {
     if (!checkForUpdates) return;
@@ -412,12 +451,16 @@ if (view.kind === "activity") {
         className="flex h-full select-none overflow-hidden"
         onContextMenu={(e) => e.preventDefault()}
       >
-        <Sidebar
-          sieves={sieves}
-          view={view}
-          onSelect={setView}
-          onDelete={(index) => void removeSieve(index)}
-        />
+        {booted ? (
+          <Sidebar
+            sieves={sieves}
+            view={view}
+            onSelect={setView}
+            onDelete={(index) => void removeSieve(index)}
+          />
+        ) : (
+          <div className="flex w-60 shrink-0 flex-col border-r border-border bg-background" />
+        )}
 
         <div className="flex min-w-0 flex-1 flex-col bg-card">
           <header
@@ -428,9 +471,11 @@ if (view.kind === "activity") {
               <WindowControls />
             </div>
           </header>
-          <ScrollArea className="min-w-0 flex-1" contentClassName="divide-y divide-border">
-            {renderMain()}
-          </ScrollArea>
+          {booted && (
+            <ScrollArea className="min-w-0 flex-1" contentClassName="divide-y divide-border">
+              {renderMain()}
+            </ScrollArea>
+          )}
         </div>
       </div>
       <Toaster position="top-center" offset={48} />
