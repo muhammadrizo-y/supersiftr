@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::{Duration, Instant, SystemTime};
 
 use tauri::Manager;
 
@@ -19,12 +22,15 @@ pub struct AppState {
     pub license: Mutex<LicenseStore>,
     pub log: ActivityLog,
     pub tray: Mutex<Option<tauri::tray::TrayIcon>>,
+    pub handled: Mutex<HandledFiles>,
 }
 
 // Lock ordering: any block that holds more than one of these mutexes must
 // acquire them in this canonical order — sieves → kinds → config → watcher.
 // `process()` is the only nested acquisition today and starts with `sieves`.
 // Keep it that way or a new command that locks the reverse order will deadlock.
+// `handled` is a leaf: `process()` only ever takes it on its own, never while
+// holding another lock.
 
 impl AppState {
     pub fn new() -> Self {
@@ -39,6 +45,7 @@ impl AppState {
             license: Mutex::new(license::load().unwrap_or_default()),
             log: ActivityLog::new(config_dir),
             tray: Mutex::new(None),
+            handled: Mutex::new(HandledFiles::new()),
         }
     }
 
@@ -128,6 +135,17 @@ impl AppState {
             return;
         }
 
+        // Skip the echo of our own work: rename/move keep a file's mtime and
+        // size, so the events they generate at the result path would
+        // otherwise match the same sieve again (Rename `{name}_renamed`
+        // looping into `_renamed_renamed_...`). A later external edit changes
+        // mtime/size and re-arms the file.
+        if let Some(fingerprint) = file_fingerprint(&path) {
+            if state.handled.lock().unwrap().is_echo(&fingerprint, &path) {
+                return;
+            }
+        }
+
         let licensed = state.license.lock().unwrap().is_licensed();
 
         for sieve in &sieves {
@@ -192,10 +210,55 @@ impl AppState {
                         }
                     }
                 }
+                if let Some(fingerprint) = file_fingerprint(&current) {
+                    state.handled.lock().unwrap().record(fingerprint, current);
+                }
                 break;
             }
         }
     }
+}
+
+/// (mtime, byte length): unchanged by rename/move, changed by edits.
+type Fingerprint = (SystemTime, u64);
+
+/// Result paths a sieve already produced, with the fingerprint they had.
+/// Echo events from our own rename/move arrive at the recorded path with an
+/// unchanged fingerprint and are skipped; anything else (new file, edited
+/// file, externally renamed file) falls through and is processed normally.
+pub struct HandledFiles {
+    entries: HashMap<PathBuf, (Fingerprint, Instant)>,
+}
+
+const MAX_HANDLED: usize = 8192;
+const HANDLED_TTL: Duration = Duration::from_secs(60);
+
+impl HandledFiles {
+    fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
+        }
+    }
+
+    fn is_echo(&self, fingerprint: &Fingerprint, path: &Path) -> bool {
+        matches!(self.entries.get(path), Some((f, _)) if f == fingerprint)
+    }
+
+    fn record(&mut self, fingerprint: Fingerprint, path: PathBuf) {
+        if self.entries.len() >= MAX_HANDLED {
+            self.entries.retain(|_, (_, at)| at.elapsed() < HANDLED_TTL);
+            if self.entries.len() >= MAX_HANDLED {
+                self.entries.clear();
+            }
+        }
+        self.entries.insert(path, (fingerprint, Instant::now()));
+    }
+}
+
+fn file_fingerprint(path: &Path) -> Option<Fingerprint> {
+    let meta = std::fs::metadata(path).ok()?;
+    let modified = meta.modified().ok()?;
+    Some((modified, meta.len()))
 }
 
 fn action_verb(action: &RuleAction) -> &'static str {
@@ -225,4 +288,89 @@ fn collect_watch_folders(sieves: &[Sieve]) -> Vec<String> {
         }
     }
     folders
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::io::Write;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("ss_handled_test_{name}_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_file(dir: &Path, name: &str, content: &[u8]) -> PathBuf {
+        let path = dir.join(name);
+        fs::File::create(&path)
+            .unwrap()
+            .write_all(content)
+            .unwrap();
+        path
+    }
+
+    #[test]
+    fn rename_keeps_fingerprint_and_matches_recorded_echo() {
+        let dir = temp_dir("rename_echo");
+        let before = write_file(&dir, "photo.jpg", b"data");
+        let fingerprint = file_fingerprint(&before).unwrap();
+        let after = dir.join("photo_renamed.jpg");
+        fs::rename(&before, &after).unwrap();
+        let fingerprint_after = file_fingerprint(&after).unwrap();
+        assert_eq!(fingerprint, fingerprint_after);
+
+        let mut handled = HandledFiles::new();
+        handled.record(fingerprint_after, after.clone());
+        assert!(handled.is_echo(&fingerprint_after, &after));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn edited_file_is_not_an_echo() {
+        let dir = temp_dir("edited");
+        let path = write_file(&dir, "doc.txt", b"one");
+        let fingerprint = file_fingerprint(&path).unwrap();
+        let mut handled = HandledFiles::new();
+        handled.record(fingerprint, path.clone());
+
+        write_file(&dir, "doc.txt", b"one two");
+        let fingerprint_after = file_fingerprint(&path).unwrap();
+        assert!(!handled.is_echo(&fingerprint_after, &path));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn same_file_at_another_path_is_not_an_echo() {
+        let dir = temp_dir("other_path");
+        let before = write_file(&dir, "a.txt", b"data");
+        let fingerprint = file_fingerprint(&before).unwrap();
+        let mut handled = HandledFiles::new();
+        handled.record(fingerprint, before.clone());
+
+        let after = dir.join("b.txt");
+        fs::rename(&before, &after).unwrap();
+        let fingerprint_after = file_fingerprint(&after).unwrap();
+        assert_eq!(fingerprint, fingerprint_after);
+        assert!(!handled.is_echo(&fingerprint_after, &after));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn record_stays_bounded() {
+        let mut handled = HandledFiles::new();
+        for i in 0..=MAX_HANDLED + 10 {
+            handled.record(
+                (SystemTime::UNIX_EPOCH, i as u64),
+                PathBuf::from(format!("x{i}")),
+            );
+        }
+        assert!(handled.entries.len() <= MAX_HANDLED);
+    }
 }
