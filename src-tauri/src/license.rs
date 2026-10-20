@@ -7,13 +7,9 @@ use thiserror::Error;
 
 use crate::config::ConfigError;
 
-/// Polar organization ID. Not a secret — it's required on every
-/// customer-portal request but carries no authority on its own.
-pub const ORGANIZATION_ID: &str = "49866fe3-bb17-492d-abb5-81f7a246f888";
+pub const ORGANIZATION_ID: &str = "31e60feb-ee0a-48bb-911b-bae955fe8126";
 
-/// Sandbox during development; switch to `https://api.polar.sh/v1` for a
-/// production release.
-const API_BASE: &str = "https://sandbox-api.polar.sh/v1";
+const API_BASE: &str = "https://api.polar.sh/v1";
 
 /// Local cache is trusted for this long before the app insists on a fresh
 /// validation call, so the license still works while offline.

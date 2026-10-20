@@ -31,6 +31,14 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Verify production licensing
+        shell: pwsh
+        run: |
+          $source = Get-Content src-tauri/src/license.rs -Raw
+          if ($source -notmatch 'const API_BASE: &str = "https://api\.polar\.sh/v1";' -or $source -match 'sandbox-api\.polar\.sh') {
+            throw "Release builds must use the production Polar API."
+          }
+
       - name: Build and publish release
         uses: tauri-apps/tauri-action@v1.0.0
         env:
